@@ -1,0 +1,74 @@
+name: pgwatch-logical-replication
+
+services:
+  metrics-db:
+    image: postgres:18.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${METRICS_DB_NAME}
+      POSTGRES_USER: ${METRICS_DB_USER}
+      POSTGRES_PASSWORD: ${METRICS_DB_PASSWORD}
+    volumes:
+      - metrics-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [monitoring]
+
+  pgwatch:
+    image: cybertecpostgresql/pgwatch:5.3.0
+    restart: unless-stopped
+    depends_on:
+      metrics-db:
+        condition: service_healthy
+    environment:
+      PW_SOURCES: /etc/pgwatch/sources.yaml
+      PW_METRICS: /etc/pgwatch/metrics
+      PW_SINK: ${METRICS_DB_CONN_STR:-postgresql://invalid}
+      PW_RETENTION: ${PGWATCH_RETENTION:-30 days}
+      PW_MAX_PARALLEL_CONNECTIONS_PER_DB: "1"
+      PW_CREATE_HELPERS: "false"
+      SOURCE_PGWATCH_NAME: ${SOURCE_PGWATCH_NAME}
+      TARGET_PGWATCH_NAME: ${TARGET_PGWATCH_NAME}
+      SOURCE_DB_CONN_STR: ${SOURCE_DB_CONN_STR:-postgresql://invalid}
+      TARGET_DB_CONN_STR: ${TARGET_DB_CONN_STR:-postgresql://invalid}
+    volumes:
+      - ./config/sources.yaml:/etc/pgwatch/sources.yaml:ro
+      - ./config/metrics:/etc/pgwatch/metrics:ro
+      - ${SOURCE_DB_SSLROOTCERT_HOST}:/run/pgwatch-certs/source-ca.crt:ro
+      - ${TARGET_DB_SSLROOTCERT_HOST}:/run/pgwatch-certs/target-ca.crt:ro
+    ports:
+      - "127.0.0.1:${PGWATCH_WEB_PORT:-8080}:8080"
+    networks: [monitoring]
+
+  grafana:
+    image: grafana/grafana:12.3
+    restart: unless-stopped
+    depends_on:
+      metrics-db:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      METRICS_DB_NAME: ${METRICS_DB_NAME}
+      METRICS_DB_USER: ${METRICS_DB_USER}
+      METRICS_DB_PASSWORD: ${METRICS_DB_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    networks: [monitoring]
+
+volumes:
+  metrics-data:
+  grafana-data:
+
+networks:
+  monitoring:
+    driver: bridge

@@ -1,0 +1,28 @@
+- name: $SOURCE_PGWATCH_NAME
+  conn_str: $SOURCE_DB_CONN_STR
+  kind: postgres
+  is_enabled: true
+  group: logical-replication
+  custom_tags:
+    migration_role: publisher
+    migration_pair: appdb-migration
+  custom_metrics:
+    source_replication_slot: 10
+    instance_up: 60
+    general_database: 60
+
+- name: $TARGET_PGWATCH_NAME
+  conn_str: $TARGET_DB_CONN_STR
+  kind: postgres
+  is_enabled: true
+  group: logical-replication
+  custom_tags:
+    migration_role: subscriber
+    migration_pair: appdb-migration
+  custom_metrics:
+    target_subscription: 10
+    target_subscription_errors: 15
+    target_table_sync: 30
+    target_replication_origins: 30
+    instance_up: 60
+    general_database: 60

@@ -1,0 +1,49 @@
+metrics:
+  target_table_sync:
+    description: Per-table and aggregate subscription synchronization state.
+    is_instance_level: true
+    gauges: ['*']
+    sqls:
+      17: |
+        SELECT
+            (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns,
+            sub.subname AS tag_subscription,
+            ns.nspname AS tag_schema,
+            c.relname AS tag_table,
+            rel.srsubstate::text AS tag_srsubstate,
+            CASE rel.srsubstate WHEN 'i' THEN 'initialize' WHEN 'd' THEN 'data copy'
+              WHEN 'f' THEN 'finished copy' WHEN 's' THEN 'synchronized'
+              WHEN 'r' THEN 'ready' ELSE 'unknown' END AS state_name,
+            COALESCE(rel.srsublsn::text, '') AS synchronization_lsn,
+            (rel.srsubstate = 'r')::int AS ready,
+            count(*) OVER (PARTITION BY sub.oid)::bigint AS total_tables,
+            count(*) FILTER (WHERE rel.srsubstate = 'r') OVER (PARTITION BY sub.oid)::bigint AS ready_tables,
+            count(*) FILTER (WHERE rel.srsubstate <> 'r') OVER (PARTITION BY sub.oid)::bigint AS non_ready_tables,
+            count(*) OVER (PARTITION BY sub.oid, rel.srsubstate)::bigint AS state_table_count
+        FROM pg_catalog.pg_subscription_rel AS rel
+        JOIN pg_catalog.pg_subscription AS sub ON sub.oid = rel.srsubid
+        JOIN pg_catalog.pg_class AS c ON c.oid = rel.srrelid
+        JOIN pg_catalog.pg_namespace AS ns ON ns.oid = c.relnamespace
+        WHERE sub.subdbid = (SELECT oid FROM pg_catalog.pg_database WHERE datname = current_database());
+      18: |
+        SELECT
+            (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns,
+            sub.subname AS tag_subscription,
+            ns.nspname AS tag_schema,
+            c.relname AS tag_table,
+            rel.srsubstate::text AS tag_srsubstate,
+            CASE rel.srsubstate WHEN 'i' THEN 'initialize' WHEN 'd' THEN 'data copy'
+              WHEN 'f' THEN 'finished copy' WHEN 's' THEN 'synchronized'
+              WHEN 'r' THEN 'ready' ELSE 'unknown' END AS state_name,
+            COALESCE(rel.srsublsn::text, '') AS synchronization_lsn,
+            (rel.srsubstate = 'r')::int AS ready,
+            count(*) OVER (PARTITION BY sub.oid)::bigint AS total_tables,
+            count(*) FILTER (WHERE rel.srsubstate = 'r') OVER (PARTITION BY sub.oid)::bigint AS ready_tables,
+            count(*) FILTER (WHERE rel.srsubstate <> 'r') OVER (PARTITION BY sub.oid)::bigint AS non_ready_tables,
+            count(*) OVER (PARTITION BY sub.oid, rel.srsubstate)::bigint AS state_table_count
+        FROM pg_catalog.pg_subscription_rel AS rel
+        JOIN pg_catalog.pg_subscription AS sub ON sub.oid = rel.srsubid
+        JOIN pg_catalog.pg_class AS c ON c.oid = rel.srrelid
+        JOIN pg_catalog.pg_namespace AS ns ON ns.oid = c.relnamespace
+        WHERE sub.subdbid = (SELECT oid FROM pg_catalog.pg_database WHERE datname = current_database());
+

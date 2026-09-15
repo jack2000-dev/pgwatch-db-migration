@@ -1,0 +1,253 @@
+apiVersion: 1
+
+# Intentionally paused: review migration windows and notification routing first.
+# No contact point is provisioned.
+groups:
+  - orgId: 1
+    name: Logical replication migration health
+    folder: PostgreSQL Migrations
+    interval: 1m
+    rules:
+      - uid: lr-slot-inactive
+        title: CRITICAL - required logical replication slot inactive
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: pgwatch-metrics
+            model:
+              datasource: {type: postgres, uid: pgwatch-metrics}
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                WITH slots AS (SELECT DISTINCT ON (tag_data->>'migration_pair', tag_data->>'slot_name') tag_data, data FROM source_replication_slot ORDER BY tag_data->>'migration_pair', tag_data->>'slot_name', time DESC), subs AS (SELECT DISTINCT ON (tag_data->>'migration_pair', tag_data->>'slot_name') tag_data, data FROM target_subscription ORDER BY tag_data->>'migration_pair', tag_data->>'slot_name', time DESC) SELECT now() AS time, COALESCE(max(CASE WHEN (slots.data->>'active')::int = 0 AND (subs.data->>'enabled')::int = 1 THEN 1 ELSE 0 END), 0)::double precision AS value FROM slots JOIN subs ON slots.tag_data->>'migration_pair' = subs.tag_data->>'migration_pair' AND slots.tag_data->>'slot_name' = subs.tag_data->>'slot_name'
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: &alert_condition
+              conditions:
+                - evaluator: {params: [0], type: gt}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {params: [], type: last}
+                  type: query
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              refId: B
+              type: classic_conditions
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {summary: "An enabled subscription's matching logical slot is inactive."}
+        labels: {severity: critical}
+        isPaused: true
+
+      - uid: lr-no-apply-worker
+        title: CRITICAL - enabled subscription has no apply worker
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: pgwatch-metrics
+            model:
+              datasource: {type: postgres, uid: pgwatch-metrics}
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                WITH latest AS (SELECT DISTINCT ON (dbname, tag_data->>'subscription') dbname, tag_data, data FROM target_subscription ORDER BY dbname, tag_data->>'subscription', time DESC) SELECT now() AS time, COALESCE(max(CASE WHEN (data->>'enabled')::int = 1 AND (data->>'apply_worker_count')::int = 0 THEN 1 ELSE 0 END), 0)::double precision AS value FROM latest
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: *alert_condition
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations: {summary: "An enabled subscription has no apply worker."}
+        labels: {severity: critical}
+        isPaused: true
+
+      - uid: lr-apply-errors-increase
+        title: CRITICAL - apply error count increased
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: pgwatch-metrics
+            model:
+              datasource: {type: postgres, uid: pgwatch-metrics}
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT now() AS time, COALESCE(max(increased), 0)::double precision AS value FROM (SELECT CASE WHEN max((data->>'apply_error_count')::bigint) > min((data->>'apply_error_count')::bigint) THEN 1 ELSE 0 END AS increased FROM target_subscription_errors WHERE time > now() - interval '5 minutes' GROUP BY dbname, tag_data->>'subscription') q
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: *alert_condition
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        annotations: {summary: "A subscription apply_error_count increased in five minutes."}
+        labels: {severity: critical}
+        isPaused: true
+
+      - uid: lr-sync-errors-increase
+        title: CRITICAL - sync error count increased
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: pgwatch-metrics
+            model:
+              datasource: {type: postgres, uid: pgwatch-metrics}
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT now() AS time, COALESCE(max(increased), 0)::double precision AS value FROM (SELECT CASE WHEN max((data->>'sync_error_count')::bigint) > min((data->>'sync_error_count')::bigint) THEN 1 ELSE 0 END AS increased FROM target_subscription_errors WHERE time > now() - interval '5 minutes' GROUP BY dbname, tag_data->>'subscription') q
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: *alert_condition
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        annotations: {summary: "A subscription sync_error_count increased in five minutes."}
+        labels: {severity: critical}
+        isPaused: true
+
+      - uid: lr-retained-wal-critical
+        title: CRITICAL - retained WAL exceeds 20 GiB
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: pgwatch-metrics
+            model:
+              datasource: {type: postgres, uid: pgwatch-metrics}
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                WITH latest AS (SELECT DISTINCT ON (dbname, tag_data->>'slot_name') data FROM source_replication_slot ORDER BY dbname, tag_data->>'slot_name', time DESC) SELECT now() AS time, COALESCE(max(CASE WHEN (data->>'retained_wal_bytes')::bigint > 21474836480 THEN 1 ELSE 0 END), 0)::double precision AS value FROM latest
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: *alert_condition
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations: {summary: "A logical slot retains more than 20 GiB of WAL."}
+        labels: {severity: critical}
+        isPaused: true
+
+      - uid: lr-retained-wal-warning
+        title: WARNING - retained WAL exceeds 10 GiB
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: pgwatch-metrics
+            model:
+              datasource: {type: postgres, uid: pgwatch-metrics}
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                WITH latest AS (SELECT DISTINCT ON (dbname, tag_data->>'slot_name') data FROM source_replication_slot ORDER BY dbname, tag_data->>'slot_name', time DESC) SELECT now() AS time, COALESCE(max(CASE WHEN (data->>'retained_wal_bytes')::bigint > 10737418240 THEN 1 ELSE 0 END), 0)::double precision AS value FROM latest
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: *alert_condition
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations: {summary: "A logical slot retains more than 10 GiB of WAL."}
+        labels: {severity: warning}
+        isPaused: true
+
+      - uid: lr-lag-warning
+        title: WARNING - logical replication lag exceeds 1 GiB
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: pgwatch-metrics
+            model:
+              datasource: {type: postgres, uid: pgwatch-metrics}
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                WITH latest AS (SELECT DISTINCT ON (dbname, tag_data->>'slot_name') data FROM source_replication_slot ORDER BY dbname, tag_data->>'slot_name', time DESC) SELECT now() AS time, COALESCE(max(CASE WHEN (data->>'lag_bytes')::bigint > 1073741824 THEN 1 ELSE 0 END), 0)::double precision AS value FROM latest
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: *alert_condition
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations: {summary: "Logical replication lag exceeds 1 GiB."}
+        labels: {severity: warning}
+        isPaused: true
+
+      - uid: lr-message-age-warning
+        title: WARNING - replication message age exceeds 60 seconds
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: pgwatch-metrics
+            model:
+              datasource: {type: postgres, uid: pgwatch-metrics}
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                WITH latest AS (SELECT DISTINCT ON (dbname, tag_data->>'subscription') tag_data, data FROM target_subscription WHERE tag_data->>'worker_type' = 'apply' ORDER BY dbname, tag_data->>'subscription', time DESC) SELECT now() AS time, COALESCE(max(CASE WHEN (data->>'enabled')::int = 1 AND (data->>'message_age_seconds')::double precision > 60 THEN 1 ELSE 0 END), 0)::double precision AS value FROM latest
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: *alert_condition
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations: {summary: "Last replication message for an enabled subscription is older than 60 seconds."}
+        labels: {severity: warning}
+        isPaused: true
+
+      - uid: lr-table-sync-stalled
+        title: WARNING - non-ready table count unchanged for 15 minutes
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 1200, to: 0}
+            datasourceUid: pgwatch-metrics
+            model:
+              datasource: {type: postgres, uid: pgwatch-metrics}
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT now() AS time, COALESCE(max(stalled), 0)::double precision AS value FROM (SELECT CASE WHEN max((data->>'non_ready_tables')::bigint) = min((data->>'non_ready_tables')::bigint) AND max((data->>'non_ready_tables')::bigint) > 0 AND max(time) - min(time) >= interval '15 minutes' THEN 1 ELSE 0 END AS stalled FROM target_table_sync WHERE time > now() - interval '20 minutes' GROUP BY dbname, tag_data->>'subscription') q
+              refId: A
+          - refId: B
+            relativeTimeRange: {from: 0, to: 0}
+            datasourceUid: __expr__
+            model: *alert_condition
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        annotations: {summary: "Non-ready table count has not changed for at least 15 minutes; long copies can cause false positives."}
+        labels: {severity: warning}
+        isPaused: true

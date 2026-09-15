@@ -1,0 +1,15 @@
+apiVersion: 1
+
+providers:
+  - name: pgwatch logical replication
+    orgId: 1
+    folder: PostgreSQL Migrations
+    folderUid: postgres-migrations
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
+

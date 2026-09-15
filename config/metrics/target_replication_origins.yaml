@@ -1,0 +1,36 @@
+metrics:
+  target_replication_origins:
+    description: Replication origins and conservative subscription activity inference.
+    is_instance_level: true
+    gauges: ['*']
+    sqls:
+      17: |
+        SELECT
+            (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns,
+            origin.external_id AS tag_origin,
+            COALESCE(sub.subname, '') AS tag_subscription,
+            origin.local_id::bigint AS local_id,
+            COALESCE(origin.remote_lsn::text, '') AS remote_lsn,
+            COALESCE(origin.local_lsn::text, '') AS local_lsn,
+            (sub.oid IS NOT NULL AND EXISTS (SELECT 1 FROM pg_catalog.pg_stat_subscription st WHERE st.subid = sub.oid AND st.pid IS NOT NULL))::int AS active,
+            count(*) OVER ()::bigint AS origin_count,
+            count(*) FILTER (WHERE sub.oid IS NOT NULL AND EXISTS (SELECT 1 FROM pg_catalog.pg_stat_subscription st2 WHERE st2.subid = sub.oid AND st2.pid IS NOT NULL)) OVER ()::bigint AS active_origin_count
+        FROM pg_catalog.pg_replication_origin_status AS origin
+        JOIN pg_catalog.pg_subscription AS sub
+          ON origin.external_id = 'pg_' || sub.oid::text
+         AND sub.subdbid = (SELECT oid FROM pg_catalog.pg_database WHERE datname = current_database());
+      18: |
+        SELECT
+            (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns,
+            origin.external_id AS tag_origin,
+            COALESCE(sub.subname, '') AS tag_subscription,
+            origin.local_id::bigint AS local_id,
+            COALESCE(origin.remote_lsn::text, '') AS remote_lsn,
+            COALESCE(origin.local_lsn::text, '') AS local_lsn,
+            (sub.oid IS NOT NULL AND EXISTS (SELECT 1 FROM pg_catalog.pg_stat_subscription st WHERE st.subid = sub.oid AND st.pid IS NOT NULL))::int AS active,
+            count(*) OVER ()::bigint AS origin_count,
+            count(*) FILTER (WHERE sub.oid IS NOT NULL AND EXISTS (SELECT 1 FROM pg_catalog.pg_stat_subscription st2 WHERE st2.subid = sub.oid AND st2.pid IS NOT NULL)) OVER ()::bigint AS active_origin_count
+        FROM pg_catalog.pg_replication_origin_status AS origin
+        JOIN pg_catalog.pg_subscription AS sub
+          ON origin.external_id = 'pg_' || sub.oid::text
+         AND sub.subdbid = (SELECT oid FROM pg_catalog.pg_database WHERE datname = current_database());

@@ -1,0 +1,25 @@
+metrics:
+  instance_up:
+    description: Lightweight connectivity heartbeat.
+    is_instance_level: true
+    gauges: ['*']
+    sqls:
+      17: |
+        SELECT (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns, 1::bigint AS up;
+      18: |
+        SELECT (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns, 1::bigint AS up;
+  general_database:
+    description: Lightweight database transaction and session totals sampled every 60 seconds.
+    is_instance_level: true
+    gauges: ['*']
+    sqls:
+      17: |
+        SELECT (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns,
+               current_database() AS tag_database, numbackends::bigint, xact_commit::bigint,
+               xact_rollback::bigint, blks_read::bigint, blks_hit::bigint
+        FROM pg_catalog.pg_stat_database WHERE datname = current_database();
+      18: |
+        SELECT (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns,
+               current_database() AS tag_database, numbackends::bigint, xact_commit::bigint,
+               xact_rollback::bigint, blks_read::bigint, blks_hit::bigint
+        FROM pg_catalog.pg_stat_database WHERE datname = current_database();

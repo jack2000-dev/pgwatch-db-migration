@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+  - name: pgwatch Metrics
+    uid: pgwatch-metrics
+    type: postgres
+    access: proxy
+    url: metrics-db:5432
+    user: $METRICS_DB_USER
+    database: $METRICS_DB_NAME
+    isDefault: true
+    editable: false
+    jsonData:
+      database: $METRICS_DB_NAME
+      sslmode: disable
+      postgresVersion: 1800
+      timescaledb: false
+      maxOpenConns: 5
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: $METRICS_DB_PASSWORD
+

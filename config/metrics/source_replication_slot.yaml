@@ -1,0 +1,38 @@
+metrics:
+  source_replication_slot:
+    description: Logical replication slot health and publisher connection state (PostgreSQL 17).
+    is_instance_level: true
+    gauges: ['*']
+    sqls:
+      17: |
+        SELECT
+            (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns,
+            s.slot_name AS tag_slot_name,
+            COALESCE(s.database, '') AS tag_database,
+            COALESCE(s.plugin, '') AS tag_plugin,
+            COALESCE(s.wal_status, 'unknown') AS tag_wal_status,
+            COALESCE(s.invalidation_reason, '') AS tag_invalidation_reason,
+            COALESCE(pr.application_name, '') AS tag_replication_application,
+            COALESCE(pr.client_addr::text, '') AS tag_replication_client_addr,
+            COALESCE(pr.state, '') AS tag_replication_state,
+            s.active::int AS active,
+            COALESCE(s.active_pid, 0)::bigint AS active_pid,
+            COALESCE(pg_wal_lsn_diff(pg_current_wal_lsn(), s.confirmed_flush_lsn), 0)::bigint AS lag_bytes,
+            COALESCE(pg_wal_lsn_diff(pg_current_wal_lsn(), s.restart_lsn), 0)::bigint AS retained_wal_bytes,
+            COALESCE(s.safe_wal_size, -1)::bigint AS safe_wal_size_bytes,
+            COALESCE(s.restart_lsn::text, '') AS restart_lsn,
+            COALESCE(s.confirmed_flush_lsn::text, '') AS confirmed_flush_lsn,
+            s.conflicting::int AS conflicting,
+            s.failover::int AS failover,
+            s.synced::int AS synced,
+            COALESCE(pr.pid, 0)::bigint AS replication_pid,
+            COALESCE(pr.sent_lsn::text, '') AS sent_lsn,
+            COALESCE(pr.write_lsn::text, '') AS write_lsn,
+            COALESCE(pr.flush_lsn::text, '') AS flush_lsn,
+            COALESCE(pr.replay_lsn::text, '') AS replay_lsn,
+            (pr.pid IS NOT NULL)::int AS publisher_connection_count,
+            COALESCE(pr.state = 'streaming', false)::int AS publisher_streaming_count
+        FROM pg_catalog.pg_replication_slots AS s
+        LEFT JOIN pg_catalog.pg_stat_replication AS pr ON pr.pid = s.active_pid
+        WHERE s.slot_type = 'logical'
+          AND s.database = current_database();
