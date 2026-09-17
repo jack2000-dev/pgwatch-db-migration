@@ -1,0 +1,104 @@
+import json
+import os
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
+import validate_data  # noqa: E402
+
+
+def row(key, **values):
+    return (
+        json.dumps({"id": str(key)}, sort_keys=True),
+        json.dumps(values, sort_keys=True),
+    )
+def database(sslmode, ca):
+    return validate_data.Database(
+        label="source",
+        host="db.example.com",
+        port="5432",
+        name="appdb",
+        user="validator",
+        password="secret",
+        sslmode=sslmode,
+        ca=ca,
+    )
+
+
+
+
+class CompareStreamsTest(unittest.TestCase):
+    def test_equal_rows(self):
+        records = []
+        counts = validate_data.compare_streams(
+            [row(1, id=1, name="one")],
+            [row(1, id=1, name="one")],
+            "public.items",
+            records.append,
+        )
+        self.assertEqual(
+            counts,
+            {"source": 1, "target": 1, "missing": 0, "extra": 0, "changed": 0},
+        )
+        self.assertEqual(records, [])
+
+    def test_ignores_json_formatting_differences(self):
+        records = []
+        counts = validate_data.compare_streams(
+            [('{"id":"1"}', '{"id":1,"amount":1.0}')],
+            [('{"id":"1"}', '{"amount":1.00,"id":1}')],
+            "public.items",
+            records.append,
+        )
+        self.assertEqual(counts["changed"], 0)
+        self.assertEqual(records, [])
+
+    def test_reports_each_difference_without_values(self):
+        records = []
+        counts = validate_data.compare_streams(
+            [
+                row(1, id=1, secret="SOURCE_SECRET_VALUE"),
+                row(2, id=2, secret="MISSING_SECRET_VALUE"),
+            ],
+            [
+                row(1, id=1, secret="TARGET_SECRET_VALUE"),
+                row(3, id=3, secret="EXTRA_SECRET_VALUE"),
+            ],
+            "public.items",
+            records.append,
+        )
+        self.assertEqual(
+            counts,
+            {"source": 2, "target": 2, "missing": 1, "extra": 1, "changed": 1},
+        )
+        self.assertEqual(
+            [record["type"] for record in records],
+            ["changed", "missing_target", "extra_target"],
+        )
+        self.assertEqual(records[0]["columns"], ["secret"])
+        rendered = json.dumps(records)
+        for secret in (
+            "SOURCE_SECRET_VALUE",
+            "TARGET_SECRET_VALUE",
+            "MISSING_SECRET_VALUE",
+            "EXTRA_SECRET_VALUE",
+        ):
+            self.assertNotIn(secret, rendered)
+
+    def test_report_is_private_without_changing_parent_permissions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            os.chmod(parent, 0o755)
+            report = validate_data.Report(parent / "report.jsonl")
+            report.write({"record": "summary"})
+            report.close()
+            self.assertEqual((parent.stat().st_mode & 0o777), 0o755)
+            self.assertEqual(((parent / "report.jsonl").stat().st_mode & 0o777), 0o600)
+
+
+if __name__ == "__main__":
+    unittest.main()

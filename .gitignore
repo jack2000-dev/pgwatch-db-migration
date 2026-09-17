@@ -1,3 +1,7 @@
 .env
+.pgpass
+*.pgpass
 *.log
+validation-reports/
+__pycache__/
 

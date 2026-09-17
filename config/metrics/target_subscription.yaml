@@ -1,6 +1,6 @@
 metrics:
   target_subscription:
-    description: Subscription and logical worker health (PostgreSQL 17/18).
+    description: Subscription and logical worker health.
     is_instance_level: true
     gauges: ['*']
     sqls:

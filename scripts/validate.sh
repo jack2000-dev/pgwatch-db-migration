@@ -20,6 +20,12 @@ set -a
 source "$env_file"
 set +a
 cd "$project_dir"
+[[ -n "${DB_PGPASSFILE_HOST:-}" ]] || { echo "ERROR: DB_PGPASSFILE_HOST is required in $env_file" >&2; exit 1; }
+[[ -f "$DB_PGPASSFILE_HOST" ]] || { echo "ERROR: PostgreSQL passfile is missing: $DB_PGPASSFILE_HOST" >&2; exit 1; }
+[[ -r "$DB_PGPASSFILE_HOST" ]] || { echo "ERROR: PostgreSQL passfile is not readable: $DB_PGPASSFILE_HOST" >&2; exit 1; }
+chmod 0600 "$DB_PGPASSFILE_HOST"
+source_sslmode="${SOURCE_DB_SSLMODE:-verify-full}"
+target_sslmode="${TARGET_DB_SSLMODE:-verify-full}"
 
 running="$(docker compose --env-file "$env_file" ps --services --filter status=running 2>/dev/null || true)"
 for service in metrics-db pgwatch grafana; do
@@ -27,20 +33,22 @@ for service in metrics-db pgwatch grafana; do
 done
 
 psql_readonly() {
-  local host="$1" port="$2" db="$3" user="$4" password="$5" ca="$6"
+  local host="$1" port="$2" db="$3" user="$4" sslmode="$5" ca="$6"
   shift 6
-  PGPASSWORD="$password" PGSSLMODE=verify-full PGSSLROOTCERT="$ca" PGAPPNAME=pgwatch-validation PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=5s -c lock_timeout=1s' psql -X --no-psqlrc -v ON_ERROR_STOP=1 -qAt -h "$host" -p "$port" -d "$db" -U "$user" "$@"
+  local -a connection_env=("PGPASSFILE=$DB_PGPASSFILE_HOST" "PGSSLMODE=$sslmode" "PGAPPNAME=pgwatch-validation" "PGOPTIONS=-c default_transaction_read_only=on -c statement_timeout=5s -c lock_timeout=1s")
+  [[ "$sslmode" != verify-ca && "$sslmode" != verify-full ]] || connection_env+=("PGSSLROOTCERT=$ca")
+  env -u PGPASSWORD -u PGSSLROOTCERT "${connection_env[@]}" psql -X --no-psqlrc -v ON_ERROR_STOP=1 -qAt -h "$host" -p "$port" -d "$db" -U "$user" "$@"
 }
 
-if source_version="$(psql_readonly "$SOURCE_DB_HOST" "$SOURCE_DB_PORT" "$SOURCE_DB_NAME" "$SOURCE_DB_USER" "$SOURCE_DB_PASSWORD" "$SOURCE_DB_SSLROOTCERT_HOST" -c "SELECT current_setting('server_version_num')::int / 10000" 2>/dev/null)" && [[ "$source_version" == 17 ]]; then
-  pass "pgwatch_monitor connects to PostgreSQL 17 source"
+if source_version="$(psql_readonly "$SOURCE_DB_HOST" "$SOURCE_DB_PORT" "$SOURCE_DB_NAME" "$SOURCE_DB_USER" "$source_sslmode" "${SOURCE_DB_SSLROOTCERT_HOST:-}" -c "SHOW server_version" 2>/dev/null)" && [[ -n "$source_version" ]]; then
+  pass "pgwatch_monitor connects to source (PostgreSQL $source_version)"
 else
-  fail "source connection/version check failed (expected PostgreSQL 17)"
+  fail "source connection/version query failed"
 fi
-if target_version="$(psql_readonly "$TARGET_DB_HOST" "$TARGET_DB_PORT" "$TARGET_DB_NAME" "$TARGET_DB_USER" "$TARGET_DB_PASSWORD" "$TARGET_DB_SSLROOTCERT_HOST" -c "SELECT current_setting('server_version_num')::int / 10000" 2>/dev/null)" && [[ "$target_version" == 18 ]]; then
-  pass "pgwatch_monitor connects to PostgreSQL 18 target"
+if target_version="$(psql_readonly "$TARGET_DB_HOST" "$TARGET_DB_PORT" "$TARGET_DB_NAME" "$TARGET_DB_USER" "$target_sslmode" "${TARGET_DB_SSLROOTCERT_HOST:-}" -c "SHOW server_version" 2>/dev/null)" && [[ -n "$target_version" ]]; then
+  pass "pgwatch_monitor connects to target (PostgreSQL $target_version)"
 else
-  fail "target connection/version check failed (expected PostgreSQL 18)"
+  fail "target connection/version query failed"
 fi
 
 if grep -Ein '\b(drop|alter|truncate|vacuum|create|grant|revoke|reset|set)\b' sql/*.sql >/dev/null; then
@@ -49,20 +57,20 @@ else
   pass "standalone SQL passes the monitoring-only safety scan"
 fi
 
-if psql_readonly "$SOURCE_DB_HOST" "$SOURCE_DB_PORT" "$SOURCE_DB_NAME" "$SOURCE_DB_USER" "$SOURCE_DB_PASSWORD" "$SOURCE_DB_SSLROOTCERT_HOST" -f sql/source_replication_slot.sql >/dev/null 2>&1; then
+if psql_readonly "$SOURCE_DB_HOST" "$SOURCE_DB_PORT" "$SOURCE_DB_NAME" "$SOURCE_DB_USER" "$source_sslmode" "${SOURCE_DB_SSLROOTCERT_HOST:-}" -f sql/source_replication_slot.sql >/dev/null 2>&1; then
   pass "source replication-slot SQL executes"
 else
   fail "source replication-slot SQL failed"
 fi
 for sql_file in target_subscription.sql target_subscription_errors.sql target_table_sync.sql target_replication_origins.sql; do
-  if psql_readonly "$TARGET_DB_HOST" "$TARGET_DB_PORT" "$TARGET_DB_NAME" "$TARGET_DB_USER" "$TARGET_DB_PASSWORD" "$TARGET_DB_SSLROOTCERT_HOST" -f "sql/$sql_file" >/dev/null 2>&1; then
+  if psql_readonly "$TARGET_DB_HOST" "$TARGET_DB_PORT" "$TARGET_DB_NAME" "$TARGET_DB_USER" "$target_sslmode" "${TARGET_DB_SSLROOTCERT_HOST:-}" -f "sql/$sql_file" >/dev/null 2>&1; then
     pass "$sql_file executes on target"
   else
     fail "$sql_file failed on target"
   fi
 done
 
-grafana_url="http://127.0.0.1:${GRAFANA_PORT:-3000}"
+grafana_url="http://${GRAFANA_BIND_ADDRESS:-127.0.0.1}:${GRAFANA_PORT:-3000}"
 grafana_auth="$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD"
 if curl -fsS --max-time 10 -u "$grafana_auth" "$grafana_url/api/datasources/uid/pgwatch-metrics" | jq -e '.uid == "pgwatch-metrics"' >/dev/null 2>&1; then
   pass "Grafana datasource exists"
@@ -70,9 +78,14 @@ else
   fail "Grafana datasource is missing or unavailable"
 fi
 if curl -fsS --max-time 10 -u "$grafana_auth" "$grafana_url/api/dashboards/uid/logical-replication-migration" | jq -e '.dashboard.title == "PostgreSQL Logical Replication Migration"' >/dev/null 2>&1; then
-  pass "Grafana dashboard is provisioned"
+  pass "Grafana detail dashboard is provisioned"
 else
-  fail "Grafana dashboard is missing or unavailable"
+  fail "Grafana detail dashboard is missing or unavailable"
+fi
+if curl -fsS --max-time 10 -u "$grafana_auth" "$grafana_url/api/dashboards/uid/logical-replication-overview" | jq -e '.dashboard.title == "PostgreSQL Migration Fleet Overview" and .dashboard.panels[0].type == "table"' >/dev/null 2>&1; then
+  pass "Grafana fleet overview is provisioned"
+else
+  fail "Grafana fleet overview is missing or unavailable"
 fi
 if alerts_json="$(curl -fsS --max-time 10 -u "$grafana_auth" "$grafana_url/api/v1/provisioning/alert-rules" 2>/dev/null)" && jq -e 'length >= 9 and all(.[]; .isPaused == true)' <<<"$alerts_json" >/dev/null; then
   pass "nine alert rules are provisioned and paused"
@@ -98,6 +111,18 @@ done
 for table in "${remaining_metrics[@]}"; do
   fail "no fresh rows arrived in metric table $table"
 done
+
+overview_sql="$(jq -er '.panels[] | select(.id == 1) | .targets[0].rawSql' grafana/dashboards/logical-replication-overview.json 2>/dev/null || true)"
+if [[ -z "$overview_sql" ]]; then
+  fail "fleet overview SQL is missing from the dashboard"
+else
+  overview_count="$(docker compose --env-file "$env_file" exec -T metrics-db psql -X -qAt -U "$METRICS_DB_USER" -d "$METRICS_DB_NAME" -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM ($overview_sql) AS overview;" 2>/dev/null || true)"
+  if [[ "$overview_count" =~ ^[0-9]+$ ]] && (( overview_count > 0 )); then
+    pass "fleet overview SQL returns at least one migration"
+  else
+    fail "fleet overview SQL failed or returned no migrations"
+  fi
+fi
 
 if (( failures > 0 )); then
   echo "Validation completed with $failures failure(s)." >&2

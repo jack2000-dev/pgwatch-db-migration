@@ -1,6 +1,6 @@
 metrics:
   source_replication_slot:
-    description: Logical replication slot health and publisher connection state (PostgreSQL 17).
+    description: Logical replication slot health and publisher connection state.
     is_instance_level: true
     gauges: ['*']
     sqls:

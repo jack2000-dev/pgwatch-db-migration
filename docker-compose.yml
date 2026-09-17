@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: ${METRICS_DB_USER}
       POSTGRES_PASSWORD: ${METRICS_DB_PASSWORD}
     volumes:
-      - metrics-data:/var/lib/postgresql/data
+      - metrics-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -37,8 +37,14 @@ services:
     volumes:
       - ./config/sources.yaml:/etc/pgwatch/sources.yaml:ro
       - ./config/metrics:/etc/pgwatch/metrics:ro
-      - ${SOURCE_DB_SSLROOTCERT_HOST}:/run/pgwatch-certs/source-ca.crt:ro
-      - ${TARGET_DB_SSLROOTCERT_HOST}:/run/pgwatch-certs/target-ca.crt:ro
+      - type: bind
+        source: ${DB_PGPASSFILE_HOST}
+        target: /run/pgwatch-secrets/pgpass
+        read_only: true
+        bind:
+          create_host_path: false
+      - ${SOURCE_DB_SSLROOTCERT_MOUNT:-/dev/null}:/run/pgwatch-certs/source-ca.crt:ro
+      - ${TARGET_DB_SSLROOTCERT_MOUNT:-/dev/null}:/run/pgwatch-certs/target-ca.crt:ro
     ports:
       - "127.0.0.1:${PGWATCH_WEB_PORT:-8080}:8080"
     networks: [monitoring]
@@ -62,7 +68,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+      - "${GRAFANA_BIND_ADDRESS:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
     networks: [monitoring]
 
 volumes:
