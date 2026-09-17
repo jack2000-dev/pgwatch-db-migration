@@ -3,7 +3,8 @@
 A monitoring-only pgwatch stack for many logical-replication migrations from
 AWS or DigitalOcean PostgreSQL into MyCloud (OpenStack). A native pgwatch Web
 UI manages database profiles, one private PostgreSQL 18 container stores both
-configuration and metrics, and Grafana provides fleet and detail dashboards.
+configuration and metrics in separate logical databases, and Grafana provides
+fleet and detail dashboards.
 
 No query in this project drops, alters, resets, vacuums, or otherwise changes a
 publisher or subscriber. Profile connection strings should enforce
@@ -189,8 +190,9 @@ stays on the private Docker bridge and uses `sslmode=disable`.
 ./scripts/start.sh
 ```
 
-On first start pgwatch automatically creates its `pgwatch` configuration
-schema in the internal PostgreSQL database. The source registry starts empty.
+On first start the launcher creates the private `pgwatch_config` database and
+initializes pgwatch's `pgwatch` configuration schema. Metrics remain in the
+separate `pgwatch_metrics` database. The source registry starts empty.
 
 ## Manage database profiles
 

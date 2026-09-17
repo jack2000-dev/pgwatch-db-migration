@@ -20,6 +20,7 @@ set -a
 # shellcheck disable=SC1090
 source "$env_file"
 set +a
+CONFIG_DB_NAME="${CONFIG_DB_NAME:-pgwatch_config}"
 cd "$project_dir"
 for var in METRICS_DB_NAME METRICS_DB_USER GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD PGWATCH_WEB_USER PGWATCH_WEB_PASSWORD; do
   [[ -n "${!var:-}" ]] || { echo "ERROR: $var is required in $env_file" >&2; exit 1; }
@@ -36,7 +37,7 @@ for service in metrics-db pgwatch grafana; do
   if grep -qx "$service" <<<"$running"; then pass "Docker service $service is running"; else fail "Docker service $service is not running"; fi
 done
 
-config_table="$(docker compose --env-file "$env_file" exec -T metrics-db psql -X -qAt -U "$METRICS_DB_USER" -d "$METRICS_DB_NAME" -v ON_ERROR_STOP=1 -c "SELECT to_regclass('pgwatch.source') IS NOT NULL;" 2>/dev/null || true)"
+config_table="$(docker compose --env-file "$env_file" exec -T metrics-db psql -X -qAt -U "$METRICS_DB_USER" -d "$CONFIG_DB_NAME" -v ON_ERROR_STOP=1 -c "SELECT to_regclass('pgwatch.source') IS NOT NULL;" 2>/dev/null || true)"
 if [[ "$config_table" == t ]]; then
   pass "PostgreSQL-backed pgwatch source registry exists"
 else

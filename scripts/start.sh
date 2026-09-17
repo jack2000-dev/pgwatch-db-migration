@@ -13,6 +13,7 @@ set -a
 # shellcheck disable=SC1090
 source "$env_file"
 set +a
+CONFIG_DB_NAME="${CONFIG_DB_NAME:-pgwatch_config}"
 
 required_vars=(
   DB_PGPASSFILE_HOST
@@ -24,6 +25,7 @@ for var in "${required_vars[@]}"; do
   [[ -n "${!var:-}" ]] || { echo "ERROR: $var is required in $env_file" >&2; exit 1; }
   [[ "${!var}" != *replace-with* ]] || { echo "ERROR: replace the placeholder value for $var" >&2; exit 1; }
 done
+[[ "$CONFIG_DB_NAME" != "$METRICS_DB_NAME" ]] || { echo "ERROR: CONFIG_DB_NAME and METRICS_DB_NAME must differ" >&2; exit 1; }
 [[ -f "$DB_PGPASSFILE_HOST" ]] || { echo "ERROR: PostgreSQL passfile is missing: $DB_PGPASSFILE_HOST" >&2; exit 1; }
 [[ -r "$DB_PGPASSFILE_HOST" ]] || { echo "ERROR: PostgreSQL passfile is not readable: $DB_PGPASSFILE_HOST" >&2; exit 1; }
 chmod 0600 "$DB_PGPASSFILE_HOST"
@@ -36,10 +38,28 @@ export DB_CERTS_DIR_HOST="$certs_dir"
 uri_encode() { jq -nr --arg value "$1" '$value|@uri'; }
 export METRICS_DB_CONN_STR
 METRICS_DB_CONN_STR="postgresql://$(uri_encode "$METRICS_DB_USER"):$(uri_encode "$METRICS_DB_PASSWORD")@metrics-db:5432/$(uri_encode "$METRICS_DB_NAME")?sslmode=disable"
-export CONFIG_DB_CONN_STR="$METRICS_DB_CONN_STR"
+export CONFIG_DB_CONN_STR
+CONFIG_DB_CONN_STR="postgresql://$(uri_encode "$METRICS_DB_USER"):$(uri_encode "$METRICS_DB_PASSWORD")@metrics-db:5432/$(uri_encode "$CONFIG_DB_NAME")?sslmode=disable"
 
 cd "$project_dir"
 docker compose --env-file "$env_file" config --quiet
+docker compose --env-file "$env_file" up -d --wait --wait-timeout 120 metrics-db
+
+if ! docker compose --env-file "$env_file" exec -T metrics-db \
+  psql -X -qAt -U "$METRICS_DB_USER" -d postgres -c 'SELECT datname FROM pg_database' \
+  | grep -Fxq "$CONFIG_DB_NAME"; then
+  docker compose --env-file "$env_file" exec -T metrics-db \
+    createdb -U "$METRICS_DB_USER" -O "$METRICS_DB_USER" "$CONFIG_DB_NAME"
+fi
+
+config_table="$(docker compose --env-file "$env_file" exec -T metrics-db \
+  psql -X -qAt -U "$METRICS_DB_USER" -d "$CONFIG_DB_NAME" \
+  -c "SELECT to_regclass('pgwatch.source');")"
+if [[ "$config_table" != pgwatch.source ]]; then
+  docker compose --env-file "$env_file" run --rm --no-deps \
+    -e PW_METRICS= -e PW_SINK= pgwatch config init
+fi
+
 docker compose --env-file "$env_file" up -d --wait --wait-timeout 120
 
 echo "Stack started."
