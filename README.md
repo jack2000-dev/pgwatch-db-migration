@@ -1,12 +1,12 @@
 # PostgreSQL Logical Replication Migration Monitoring
 
-A monitoring-only pgwatch stack for a PostgreSQL publisher and subscriber. It
-runs on a separate host, stores metrics in a private PostgreSQL 18 container,
-and provisions Grafana with the dashboard **PostgreSQL Logical
-Replication Migration**.
+A monitoring-only pgwatch stack for many logical-replication migrations from
+AWS or DigitalOcean PostgreSQL into MyCloud (OpenStack). A native pgwatch Web
+UI manages database profiles, one private PostgreSQL 18 container stores both
+configuration and metrics, and Grafana provides fleet and detail dashboards.
 
 No query in this project drops, alters, resets, vacuums, or otherwise changes a
-publisher or subscriber. Source and target connections enforce
+publisher or subscriber. Profile connection strings should enforce
 `default_transaction_read_only=on`, a 5-second statement timeout, and a
 1-second lock timeout.
 
@@ -14,31 +14,34 @@ publisher or subscriber. Source and target connections enforce
 
 ```mermaid
 flowchart LR
-    S[(PostgreSQL\nPublisher)]
-    T[(PostgreSQL\nSubscriber)]
-    subgraph M[Separate monitoring host]
-      P[pgwatch 5.3.0]
-      D[(Metrics PostgreSQL 18)]
+    A[(AWS publishers)]
+    O[(DigitalOcean publishers)]
+    T[(MyCloud / OpenStack\nsubscribers)]
+    subgraph M[MyCloud monitoring host]
+      P[pgwatch 5.3.0\ncollector + Web UI]
+      D[(PostgreSQL 18\nconfig + metrics)]
       G[Grafana 12.3]
-      P -->|writes metrics| D
+      P -->|profiles + metrics| D
       G -->|read-only dashboard queries| D
     end
-    P -->|configured SSL\nread-only SQL| S
-    P -->|configured SSL\nread-only SQL| T
+    P -->|VPN + configured SSL\nread-only SQL| A
+    P -->|VPN + configured SSL\nread-only SQL| O
+    P -->|private network + SSL\nread-only SQL| T
 ```
 
 Grafana binds to `GRAFANA_BIND_ADDRESS`, which defaults to `127.0.0.1`.
-The pgwatch administrative UI remains on `127.0.0.1`, and the metrics
+The pgwatch administrative UI binds to `PGWATCH_WEB_BIND_ADDRESS`, also
+loopback by default, and requires its own username and password. The internal
 database has no host port. The Docker bridge is not marked internal because
-pgwatch must reach the external database servers.
+pgwatch must reach databases over the AWS, DigitalOcean, and MyCloud networks.
 
 ## Version assumptions
 
 This project was checked on 2026-09-15 against the current stable pgwatch
 release, **v5.3.0**. It deliberately does not use the archived pgwatch2 format
-or the v6 beta. It uses the v5 YAML source and metric format, the supported
-`cybertecpostgresql/pgwatch:5.3.0` image, Grafana 12.3, and
-`postgres:18.6-alpine` for the internal sink.
+or the v6 beta. It uses the v5 PostgreSQL source store and YAML metric format,
+the supported `cybertecpostgresql/pgwatch:5.3.0` image, Grafana 12.3, and
+`postgres:18.6-alpine` for internal configuration and metrics.
 
 Validation detects and prints each server's reported PostgreSQL version; it
 does not reject a connection based only on the major version. Custom metric
@@ -130,17 +133,19 @@ chmod 600 .env
 ```
 
 Create the shared passfile referenced by `DB_PGPASSFILE_HOST` with one exact
-entry for every source/target user:
+entry for every monitoring profile:
 
 ```text
-publisher.example.com:5432:appdb:pgwatch_monitor:<SOURCE_MONITOR_PASSWORD>
-subscriber.example.com:5432:appdb:pgwatch_monitor:<TARGET_MONITOR_PASSWORD>
-publisher.example.com:5432:appdb:migration_validator:<SOURCE_VALIDATION_PASSWORD>
-subscriber.example.com:5432:appdb:migration_validator:<TARGET_VALIDATION_PASSWORD>
+aws-prod01.internal:5432:orders:pgwatch_monitor:<AWS_ORDERS_PASSWORD>
+openstack-db01.internal:5432:orders:pgwatch_monitor:<MYCLOUD_ORDERS_PASSWORD>
+do-prod01.internal:5432:wallet:pgwatch_monitor:<DO_WALLET_PASSWORD>
+openstack-db02.internal:5432:wallet:pgwatch_monitor:<MYCLOUD_WALLET_PASSWORD>
 ```
 
-Use the same host, port, database, and username values configured in `.env`;
-avoid wildcards. Escape `:` and `\` with a backslash as described in the
+Add separate `migration_validator` entries only for a pair that will use the
+exact cutover comparison. Host, port, database, and username must exactly match
+the passwordless connection string saved in the Web UI; avoid wildcards.
+Escape `:` and `\` with a backslash as described in the
 [PostgreSQL password-file documentation](https://www.postgresql.org/docs/current/libpq-pgpass.html).
 Protect the file before starting the stack:
 
@@ -148,47 +153,91 @@ Protect the file before starting the stack:
 chmod 600 /absolute/path/to/.pgpass
 ```
 
-Edit `.env`. Set real source/target hosts, database names, monitoring and
-validation usernames, `DB_PGPASSFILE_HOST`, unique internal/Grafana passwords,
-and each endpoint's SSL mode.
-For `verify-ca` or `verify-full`, also provide an absolute readable CA path.
-For exact data validation, set the publication and subscription; it uses the
-same endpoint SSL modes.
-The non-secret `migration_pair` values in `config/sources.yaml` correlate
-the publisher and subscriber. Use a unique shared value for each migration
-pair. pgwatch v5.3 expands environment variables in source names and
-connection strings, but not in `custom_tags`, so this label is intentionally
-set in YAML.
+Edit `.env`. Set `DB_PGPASSFILE_HOST`, unique internal PostgreSQL, Grafana,
+and pgwatch Web UI passwords, and keep both web bind addresses on loopback for
+the first trial. `SOURCE_DB_*` and `TARGET_DB_*` now describe only the
+optional pair checked by `validate.sh` and `validate-data.sh`; they no longer
+control continuous monitoring.
+
+Put any CA certificates used by profiles in `DB_CERTS_DIR_HOST`. That
+directory is mounted read-only at `/run/pgwatch-certs`. Certificate contents
+are ignored by Git.
 
 The scripts source `.env` as shell syntax. Single-quote values containing
 `$`, `#`, spaces, or other shell metacharacters. A literal single quote in
 a secret should be avoided or escaped using normal shell syntax. External
-database passwords are not stored in `.env`, generated connection URLs, or
-checked-in YAML.
+database passwords belong only in the shared passfile, not in `.env`, the
+Web UI, connection strings, or the pgwatch configuration database.
 
-The shared passfile is mounted read-only into the pgwatch container, so pgwatch
-can read its validation entries. Keep it dedicated to this project and include
-only the four required credentials.
+The passfile is mounted read-only at `/run/pgwatch-secrets/pgpass`. Keep it
+dedicated to this project and add an exact entry for each monitored database.
 
-Set `SOURCE_DB_SSLMODE` and `TARGET_DB_SSLMODE` independently. All standard
-PostgreSQL modes are accepted:
+Every Web UI profile selects its own PostgreSQL SSL mode:
 
 - `verify-full`: encrypted, with CA and hostname verification.
 - `verify-ca`: encrypted, with CA verification only.
 - `require`: encrypted, without server identity verification.
 - `prefer`, `allow`, or `disable`: encryption is not guaranteed.
 
-`verify-full` remains the default. CA paths are required only for `verify-ca`
-and `verify-full`; leave the corresponding `*_SSLROOTCERT_HOST` empty when no
-CA is available. Startup warns when a selected mode lacks full verification.
-Traffic inside the private Docker bridge uses `sslmode=disable`; that metrics
-database is not exposed on a host port.
+Prefer `verify-full`. For verification modes, reference the mounted path such
+as `/run/pgwatch-certs/aws-ca.pem`. Traffic to the unexposed internal database
+stays on the private Docker bridge and uses `sslmode=disable`.
 
 ## Start
 
 ```bash
 ./scripts/start.sh
 ```
+
+On first start pgwatch automatically creates its `pgwatch` configuration
+schema in the internal PostgreSQL database. The source registry starts empty.
+
+## Manage database profiles
+
+Keep the management console on loopback and open it from your Mac:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 user@203.156.65.173
+```
+
+Open <http://127.0.0.1:8080>, sign in with `PGWATCH_WEB_USER` and
+`PGWATCH_WEB_PASSWORD`, and use **Sources** to create two explicit profiles
+for every replicated database:
+
+- Publisher: AWS or DigitalOcean database.
+- Subscriber: corresponding MyCloud (OpenStack) database.
+
+Use `kind: postgres`, `group: logical-replication`, a unique source name,
+and a passwordless connection string. For example:
+
+```text
+postgresql://pgwatch_monitor@aws-prod01.internal:5432/orders?sslmode=verify-full&sslrootcert=/run/pgwatch-certs/aws-ca.pem&passfile=/run/pgwatch-secrets/pgpass&application_name=pgwatch-logical&options=-cdefault_transaction_read_only%3Don%20-cstatement_timeout%3D5s%20-clock_timeout%3D1s
+```
+
+Choose `require` and omit `sslrootcert` when encryption without CA
+verification is the strongest mode currently available. The Web UI's
+connection test runs inside the pgwatch container, so it uses the mounted
+passfile and certificates.
+
+Give both sides the same unique `migration_pair`. Example custom tags:
+
+```json
+{"provider":"aws","instance":"aws-prod01","environment":"production","migration_role":"publisher","migration_pair":"aws-orders-prod"}
+```
+
+The MyCloud side changes `provider`, `instance`, and `migration_role`:
+
+```json
+{"provider":"mycloud","instance":"openstack-db01","environment":"production","migration_role":"subscriber","migration_pair":"aws-orders-prod"}
+```
+
+Configure publisher custom metrics as
+`{"source_replication_slot":10,"instance_up":60,"general_database":60}`.
+Configure subscriber custom metrics as
+`{"target_subscription":10,"target_subscription_errors":15,"target_table_sync":30,"target_replication_origins":30,"instance_up":60,"general_database":60}`.
+The complete pair is also shown in `config/sources.yaml` as a non-active
+reference. Saved profiles persist in the `metrics-data` volume and are picked
+up by pgwatch within its refresh interval.
 
 The exact sampling intervals are:
 
@@ -232,8 +281,8 @@ Two dashboards are under **PostgreSQL Migrations**:
 - **PostgreSQL Migration Fleet Overview** lists every correlated migration as
   `source instance → target instance`, database, latest lag, new errors in the
   last five minutes, table readiness, and cutover readiness. The instance names
-  are the existing `SOURCE_PGWATCH_NAME` and `TARGET_PGWATCH_NAME` labels. Click
-  a database name to open the matching detail dashboard.
+  are the unique profile names configured in the pgwatch Web UI. Click a
+  database name to open the matching detail dashboard.
 - **PostgreSQL Logical Replication Migration** provides detailed charts and
   tables. Choose publisher, subscriber, subscription, and slot from its
   dashboard variables.
@@ -305,22 +354,20 @@ ownership transfers, or the comparison no longer represents replication alone.
 
 Each pgwatch source is one database connection. For another migration pair:
 
-1. Add uniquely named source/target variables to `.env`.
-2. Add exact monitoring entries for both endpoints to the shared passfile; add
+1. Grant `CONNECT` on both databases to `pgwatch_monitor`.
+2. Add exact passfile entries for the publisher and subscriber; add
    validation-user entries too when exact comparison will be used.
-3. Export two additional URL-encoded connection strings in
-   `scripts/start.sh`, following the existing `build_db_uri` calls.
-4. Append publisher and subscriber entries to `config/sources.yaml`, using
-   unique `name` values and the new connection-string variables.
-5. Give both entries the same new `migration_pair` tag.
-6. Grant `CONNECT` on each added database to `pgwatch_monitor`.
-7. Restart only the monitoring stack and validate.
+3. Put any required CA file in `DB_CERTS_DIR_HOST`.
+4. In the pgwatch Web UI, create uniquely named publisher and subscriber
+   profiles with the role-specific custom metrics.
+5. Give both profiles the same new `migration_pair` and the appropriate
+   `provider`, `instance`, and `migration_role` tags.
+6. Test each connection in the UI, save both profiles, wait for the refresh
+   interval, and run `./scripts/validate.sh`.
 
 Do not reuse a pgwatch `name`; it becomes the `dbname` label in the metrics
-sink. The dashboard automatically discovers additional names. If many
-databases are migrated, consider one migration pair per Compose project to
-keep credentials and failure domains isolated; set a unique Compose project
-name and host ports for each.
+sink. The dashboard automatically discovers additional names. Keep one shared
+stack unless a network or security boundary requires separate collectors.
 
 ## Troubleshoot missing metrics
 
@@ -328,7 +375,7 @@ name and host ports for each.
 2. Check `docker compose logs --since=10m pgwatch` without posting logs that
    may contain connection details.
 3. Confirm `DB_PGPASSFILE_HOST` points to a readable mode-`0600` file and
-   that its host, port, database, and username fields exactly match `.env`.
+   that its host, port, database, and username fields match the Web UI profile.
 4. Verify DNS, firewall rules, and pg_hba.conf access for the monitoring role.
    For certificate verification modes, also check the CA path and certificate
    hostname.
@@ -364,8 +411,9 @@ After the stack is down, it is safe to delete this project directory, its
 `.env`, dashboard/configuration files, CA-file copies used only by this
 monitoring host, a passfile created only for this project, and the Compose
 volumes `metrics-data` and `grafana-data`.
-Deleting the volumes permanently removes only monitoring history and Grafana
-state.
+Deleting the volumes permanently removes monitoring history, the pgwatch
+source-profile registry, and Grafana state. Export or record profiles before
+removing `metrics-data`.
 
 **Never delete or change anything on PostgreSQL as part of cleanup.** In
 particular, do not drop replication slots, publications, subscriptions,
@@ -385,8 +433,9 @@ separate access-control decision and is not performed by these scripts.
   the paused stagnation rule a false positive.
 - Correlation assumes the target `subslotname` matches the publisher slot
   name and both sources share the correct `migration_pair` tag.
-- Source/target client certificates are not configured; add read-only mounts
-  and libpq `sslcert`/`sslkey` parameters if mutual TLS is required.
+- Client certificates are not added automatically; place them in the ignored
+  certificate directory and add container-side `sslcert`/`sslkey` paths to
+  that profile when mutual TLS is required.
 - Grafana and pgwatch UI are loopback-only; remote access needs an SSH tunnel
   or a separately secured reverse proxy.
 - Exact data validation supports one full-row publication whose tables all have

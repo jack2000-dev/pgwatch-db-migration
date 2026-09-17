@@ -7,6 +7,7 @@ failures=0
 
 pass() { printf 'PASS: %s\n' "$1"; }
 fail() { printf 'FAIL: %s\n' "$1" >&2; failures=$((failures + 1)); }
+skip() { printf 'SKIP: %s\n' "$1"; }
 need() { command -v "$1" >/dev/null || { echo "ERROR: $1 is required" >&2; exit 1; }; }
 
 need docker
@@ -20,6 +21,9 @@ set -a
 source "$env_file"
 set +a
 cd "$project_dir"
+for var in METRICS_DB_NAME METRICS_DB_USER GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD PGWATCH_WEB_USER PGWATCH_WEB_PASSWORD; do
+  [[ -n "${!var:-}" ]] || { echo "ERROR: $var is required in $env_file" >&2; exit 1; }
+done
 [[ -n "${DB_PGPASSFILE_HOST:-}" ]] || { echo "ERROR: DB_PGPASSFILE_HOST is required in $env_file" >&2; exit 1; }
 [[ -f "$DB_PGPASSFILE_HOST" ]] || { echo "ERROR: PostgreSQL passfile is missing: $DB_PGPASSFILE_HOST" >&2; exit 1; }
 [[ -r "$DB_PGPASSFILE_HOST" ]] || { echo "ERROR: PostgreSQL passfile is not readable: $DB_PGPASSFILE_HOST" >&2; exit 1; }
@@ -32,6 +36,30 @@ for service in metrics-db pgwatch grafana; do
   if grep -qx "$service" <<<"$running"; then pass "Docker service $service is running"; else fail "Docker service $service is not running"; fi
 done
 
+config_table="$(docker compose --env-file "$env_file" exec -T metrics-db psql -X -qAt -U "$METRICS_DB_USER" -d "$METRICS_DB_NAME" -v ON_ERROR_STOP=1 -c "SELECT to_regclass('pgwatch.source') IS NOT NULL;" 2>/dev/null || true)"
+if [[ "$config_table" == t ]]; then
+  pass "PostgreSQL-backed pgwatch source registry exists"
+else
+  fail "PostgreSQL-backed pgwatch source registry is missing"
+fi
+
+pgwatch_host="${PGWATCH_WEB_BIND_ADDRESS:-127.0.0.1}"
+[[ "$pgwatch_host" != "0.0.0.0" ]] || pgwatch_host=127.0.0.1
+pgwatch_url="http://$pgwatch_host:${PGWATCH_WEB_PORT:-8080}"
+login_body="$(jq -nc --arg user "$PGWATCH_WEB_USER" --arg password "$PGWATCH_WEB_PASSWORD" '{user: $user, password: $password}')"
+source_count=0
+if pgwatch_token="$(curl -fsS --max-time 10 -H 'Content-Type: application/json' -d "$login_body" "$pgwatch_url/login" 2>/dev/null)" && [[ -n "$pgwatch_token" ]]; then
+  pass "pgwatch Web UI authentication succeeds"
+  if sources_json="$(curl -fsS --max-time 10 -H "Token: $pgwatch_token" "$pgwatch_url/source" 2>/dev/null)" && source_count="$(jq -er 'if type == "array" then length else error("not an array") end' <<<"$sources_json" 2>/dev/null)"; then
+    pass "pgwatch source API reports $source_count profile(s)"
+  else
+    fail "pgwatch source API is unavailable"
+    source_count=0
+  fi
+else
+  fail "pgwatch Web UI authentication failed"
+fi
+
 psql_readonly() {
   local host="$1" port="$2" db="$3" user="$4" sslmode="$5" ca="$6"
   shift 6
@@ -40,6 +68,14 @@ psql_readonly() {
   env -u PGPASSWORD -u PGSSLROOTCERT "${connection_env[@]}" psql -X --no-psqlrc -v ON_ERROR_STOP=1 -qAt -h "$host" -p "$port" -d "$db" -U "$user" "$@"
 }
 
+profile_configured=true
+for var in SOURCE_DB_HOST SOURCE_DB_PORT SOURCE_DB_NAME SOURCE_DB_USER TARGET_DB_HOST TARGET_DB_PORT TARGET_DB_NAME TARGET_DB_USER; do
+  if [[ -z "${!var:-}" || "${!var}" == *replace-with* || "${!var}" == *.example.com ]]; then
+    profile_configured=false
+  fi
+done
+
+if "$profile_configured"; then
 if source_version="$(psql_readonly "$SOURCE_DB_HOST" "$SOURCE_DB_PORT" "$SOURCE_DB_NAME" "$SOURCE_DB_USER" "$source_sslmode" "${SOURCE_DB_SSLROOTCERT_HOST:-}" -c "SHOW server_version" 2>/dev/null)" && [[ -n "$source_version" ]]; then
   pass "pgwatch_monitor connects to source (PostgreSQL $source_version)"
 else
@@ -50,6 +86,9 @@ if target_version="$(psql_readonly "$TARGET_DB_HOST" "$TARGET_DB_PORT" "$TARGET_
 else
   fail "target connection/version query failed"
 fi
+else
+  skip "direct SQL checks; optional SOURCE_DB_* and TARGET_DB_* validation pair is not configured"
+fi
 
 if grep -Ein '\b(drop|alter|truncate|vacuum|create|grant|revoke|reset|set)\b' sql/*.sql >/dev/null; then
   fail "standalone SQL contains a statement outside the read-only allowlist"
@@ -57,6 +96,7 @@ else
   pass "standalone SQL passes the monitoring-only safety scan"
 fi
 
+if "$profile_configured"; then
 if psql_readonly "$SOURCE_DB_HOST" "$SOURCE_DB_PORT" "$SOURCE_DB_NAME" "$SOURCE_DB_USER" "$source_sslmode" "${SOURCE_DB_SSLROOTCERT_HOST:-}" -f sql/source_replication_slot.sql >/dev/null 2>&1; then
   pass "source replication-slot SQL executes"
 else
@@ -69,6 +109,7 @@ for sql_file in target_subscription.sql target_subscription_errors.sql target_ta
     fail "$sql_file failed on target"
   fi
 done
+fi
 
 grafana_url="http://${GRAFANA_BIND_ADDRESS:-127.0.0.1}:${GRAFANA_PORT:-3000}"
 grafana_auth="$GRAFANA_ADMIN_USER:$GRAFANA_ADMIN_PASSWORD"
@@ -93,6 +134,7 @@ else
   fail "alert rules are missing, unavailable, or not all paused"
 fi
 
+if (( source_count > 0 )); then
 remaining_metrics=(source_replication_slot target_subscription target_subscription_errors target_table_sync target_replication_origins instance_up general_database)
 for attempt in {1..12}; do
   next_remaining=()
@@ -122,6 +164,9 @@ else
   else
     fail "fleet overview SQL failed or returned no migrations"
   fi
+fi
+else
+  skip "fresh metric and fleet-row checks; add publisher/subscriber profiles in the pgwatch Web UI"
 fi
 
 if (( failures > 0 )); then

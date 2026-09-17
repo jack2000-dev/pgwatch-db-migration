@@ -24,18 +24,15 @@ services:
       metrics-db:
         condition: service_healthy
     environment:
-      PW_SOURCES: /etc/pgwatch/sources.yaml
+      PW_SOURCES: ${CONFIG_DB_CONN_STR:-postgresql://invalid}
       PW_METRICS: /etc/pgwatch/metrics
       PW_SINK: ${METRICS_DB_CONN_STR:-postgresql://invalid}
       PW_RETENTION: ${PGWATCH_RETENTION:-30 days}
       PW_MAX_PARALLEL_CONNECTIONS_PER_DB: "1"
       PW_CREATE_HELPERS: "false"
-      SOURCE_PGWATCH_NAME: ${SOURCE_PGWATCH_NAME}
-      TARGET_PGWATCH_NAME: ${TARGET_PGWATCH_NAME}
-      SOURCE_DB_CONN_STR: ${SOURCE_DB_CONN_STR:-postgresql://invalid}
-      TARGET_DB_CONN_STR: ${TARGET_DB_CONN_STR:-postgresql://invalid}
+      PW_WEBUSER: ${PGWATCH_WEB_USER}
+      PW_WEBPASSWORD: ${PGWATCH_WEB_PASSWORD}
     volumes:
-      - ./config/sources.yaml:/etc/pgwatch/sources.yaml:ro
       - ./config/metrics:/etc/pgwatch/metrics:ro
       - type: bind
         source: ${DB_PGPASSFILE_HOST}
@@ -43,10 +40,14 @@ services:
         read_only: true
         bind:
           create_host_path: false
-      - ${SOURCE_DB_SSLROOTCERT_MOUNT:-/dev/null}:/run/pgwatch-certs/source-ca.crt:ro
-      - ${TARGET_DB_SSLROOTCERT_MOUNT:-/dev/null}:/run/pgwatch-certs/target-ca.crt:ro
+      - type: bind
+        source: ${DB_CERTS_DIR_HOST:-./secrets/certs}
+        target: /run/pgwatch-certs
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
-      - "127.0.0.1:${PGWATCH_WEB_PORT:-8080}:8080"
+      - "${PGWATCH_WEB_BIND_ADDRESS:-127.0.0.1}:${PGWATCH_WEB_PORT:-8080}:8080"
     networks: [monitoring]
 
   grafana:

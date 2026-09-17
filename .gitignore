@@ -4,4 +4,6 @@
 *.log
 validation-reports/
 __pycache__/
+secrets/certs/*
+!secrets/certs/.gitkeep
 
