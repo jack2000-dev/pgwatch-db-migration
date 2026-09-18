@@ -98,11 +98,13 @@ else
 fi
 
 if "$profile_configured"; then
-if psql_readonly "$SOURCE_DB_HOST" "$SOURCE_DB_PORT" "$SOURCE_DB_NAME" "$SOURCE_DB_USER" "$source_sslmode" "${SOURCE_DB_SSLROOTCERT_HOST:-}" -f sql/source_replication_slot.sql >/dev/null 2>&1; then
-  pass "source replication-slot SQL executes"
-else
-  fail "source replication-slot SQL failed"
-fi
+for sql_file in source_replication_slot.sql source_publication.sql; do
+  if psql_readonly "$SOURCE_DB_HOST" "$SOURCE_DB_PORT" "$SOURCE_DB_NAME" "$SOURCE_DB_USER" "$source_sslmode" "${SOURCE_DB_SSLROOTCERT_HOST:-}" -f "sql/$sql_file" >/dev/null 2>&1; then
+    pass "$sql_file executes on source"
+  else
+    fail "$sql_file failed on source"
+  fi
+done
 for sql_file in target_subscription.sql target_subscription_errors.sql target_table_sync.sql target_replication_origins.sql; do
   if psql_readonly "$TARGET_DB_HOST" "$TARGET_DB_PORT" "$TARGET_DB_NAME" "$TARGET_DB_USER" "$target_sslmode" "${TARGET_DB_SSLROOTCERT_HOST:-}" -f "sql/$sql_file" >/dev/null 2>&1; then
     pass "$sql_file executes on target"
@@ -129,14 +131,14 @@ if curl -fsS --max-time 10 -u "$grafana_auth" "$grafana_url/api/dashboards/uid/l
 else
   fail "Grafana fleet overview is missing or unavailable"
 fi
-if alerts_json="$(curl -fsS --max-time 10 -u "$grafana_auth" "$grafana_url/api/v1/provisioning/alert-rules" 2>/dev/null)" && jq -e 'length >= 9 and all(.[]; .isPaused == true)' <<<"$alerts_json" >/dev/null; then
-  pass "nine alert rules are provisioned and paused"
+if alerts_json="$(curl -fsS --max-time 10 -u "$grafana_auth" "$grafana_url/api/v1/provisioning/alert-rules" 2>/dev/null)" && jq -e 'length >= 8 and any(.[]; .uid == "lr-logical-replication-errors") and all(.[]; .isPaused == true)' <<<"$alerts_json" >/dev/null; then
+  pass "eight alert rules are provisioned and paused"
 else
   fail "alert rules are missing, unavailable, or not all paused"
 fi
 
 if (( source_count > 0 )); then
-remaining_metrics=(source_replication_slot target_subscription target_subscription_errors target_table_sync target_replication_origins instance_up general_database)
+remaining_metrics=(source_replication_slot source_publication target_subscription target_subscription_errors target_table_sync target_replication_origins instance_up general_database)
 for attempt in {1..12}; do
   next_remaining=()
   for table in "${remaining_metrics[@]}"; do

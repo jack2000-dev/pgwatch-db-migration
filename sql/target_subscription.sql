@@ -4,6 +4,7 @@ SELECT
     COALESCE(st.worker_type, 'none') AS tag_worker_type,
     COALESCE(ns.nspname || '.' || c.relname, '') AS tag_relation,
     COALESCE(sub.subslotname, '') AS tag_slot_name,
+    pg_catalog.array_to_json(sub.subpublications)::text AS tag_publications,
     sub.subenabled::int AS enabled,
     CASE
       WHEN NOT sub.subenabled THEN 0

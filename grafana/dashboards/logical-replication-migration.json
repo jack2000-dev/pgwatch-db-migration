@@ -36,7 +36,7 @@
       "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "textMode": "auto", "wideLayout": true}
     },
     {
-      "id": 5, "type": "timeseries", "title": "Replication lag bytes over time", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "id": 5, "type": "timeseries", "title": "Lag (bytes)", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
       "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
       "targets": [{"refId": "A", "format": "time_series", "rawSql": "SELECT time AS time, (data->>'lag_bytes')::double precision AS value FROM source_replication_slot WHERE $__timeFilter(time) AND dbname = '$publisher' AND tag_data->>'slot_name' = '$slot' ORDER BY time"}],
       "fieldConfig": {"defaults": {"unit": "bytes", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1073741824}]}}, "overrides": []},
@@ -85,11 +85,11 @@
       "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
     },
     {
-      "id": 12, "type": "barchart", "title": "Table states grouped by srsubstate", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+      "id": 12, "type": "table", "title": "Publication status", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
       "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "WITH latest AS (SELECT max(time) AS time FROM target_table_sync WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription') SELECT tag_data->>'srsubstate' AS state, max((data->>'state_table_count')::bigint) AS tables FROM target_table_sync, latest WHERE target_table_sync.time = latest.time AND dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' GROUP BY 1 ORDER BY 1"}],
-      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
-      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": false}, "orientation": "auto", "showValue": "always", "stacking": "none", "xTickLabelRotation": 0, "xTickLabelSpacing": 0}
+      "targets": [{"refId": "A", "format": "table", "rawSql": "WITH latest_subscription AS (SELECT tag_data->>'publications' AS publications FROM target_subscription WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time DESC LIMIT 1), wanted AS (SELECT pg_catalog.jsonb_array_elements_text(COALESCE(publications, '[]')::jsonb) AS publication FROM latest_subscription), latest_publications AS (SELECT DISTINCT ON (tag_data->>'publication') time, tag_data, data FROM source_publication WHERE dbname = '$publisher' ORDER BY tag_data->>'publication', time DESC) SELECT wanted.publication, CASE WHEN publication.tag_data IS NULL THEN 'MISSING' ELSE 'CONFIGURED' END AS status, publication.tag_data->>'owner' AS owner, COALESCE((publication.data->>'table_count')::bigint, 0) AS tables, COALESCE((publication.data->>'all_tables')::int, 0) AS all_tables, COALESCE((publication.data->>'publishes_insert')::int, 0) AS inserts, COALESCE((publication.data->>'publishes_update')::int, 0) AS updates, COALESCE((publication.data->>'publishes_delete')::int, 0) AS deletes, COALESCE((publication.data->>'publishes_truncate')::int, 0) AS truncates FROM wanted LEFT JOIN latest_publications AS publication ON publication.tag_data->>'publication' = wanted.publication ORDER BY wanted.publication"}],
+      "fieldConfig": {"defaults": {}, "overrides": [{"matcher": {"id": "byName", "options": "status"}, "properties": [{"id": "mappings", "value": [{"type": "value", "options": {"CONFIGURED": {"text": "CONFIGURED", "color": "green"}, "MISSING": {"text": "MISSING", "color": "red"}}}]}, {"id": "custom.cellOptions", "value": {"type": "color-background"}}]}]},
+      "options": {"showHeader": true, "cellHeight": "sm"}
     },
     {
       "id": 13, "type": "timeseries", "title": "Last replication message age", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32},
@@ -101,7 +101,7 @@
     {
       "id": 14, "type": "table", "title": "Logical replication slots", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 40},
       "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "WITH latest AS (SELECT max(time) AS time FROM source_replication_slot WHERE dbname = '$publisher') SELECT s.time, tag_data->>'slot_name' AS slot_name, tag_data->>'database' AS database, (data->>'active')::int AS active, data->>'restart_lsn' AS restart_lsn, data->>'confirmed_flush_lsn' AS confirmed_flush_lsn, pg_size_pretty((data->>'lag_bytes')::bigint) AS lag, pg_size_pretty((data->>'retained_wal_bytes')::bigint) AS retained_wal, tag_data->>'wal_status' AS wal_status, data->>'safe_wal_size_bytes' AS safe_wal_size_bytes, tag_data->>'invalidation_reason' AS invalidation_reason, tag_data->>'replication_application' AS application, tag_data->>'replication_client_addr' AS client_addr, tag_data->>'replication_state' AS replication_state, (data->>'replication_pid')::bigint AS replication_pid, data->>'sent_lsn' AS sent_lsn, data->>'write_lsn' AS write_lsn, data->>'flush_lsn' AS flush_lsn, data->>'replay_lsn' AS replay_lsn FROM source_replication_slot s, latest WHERE s.time = latest.time AND dbname = '$publisher' ORDER BY slot_name"}],
+      "targets": [{"refId": "A", "format": "table", "rawSql": "SELECT DISTINCT ON (tag_data->>'slot_name') time, tag_data->>'slot_name' AS slot_name, tag_data->>'database' AS database, (data->>'active')::int AS active, data->>'restart_lsn' AS restart_lsn, data->>'confirmed_flush_lsn' AS confirmed_flush_lsn, (data->>'lag_bytes')::bigint AS lag_bytes, (data->>'retained_wal_bytes')::bigint AS retained_wal_bytes, tag_data->>'wal_status' AS wal_status, data->>'safe_wal_size_bytes' AS safe_wal_size_bytes, tag_data->>'invalidation_reason' AS invalidation_reason, tag_data->>'replication_application' AS application, tag_data->>'replication_client_addr' AS client_addr, tag_data->>'replication_state' AS replication_state, (data->>'replication_pid')::bigint AS replication_pid, data->>'sent_lsn' AS sent_lsn, data->>'write_lsn' AS write_lsn, data->>'flush_lsn' AS flush_lsn, data->>'replay_lsn' AS replay_lsn FROM source_replication_slot WHERE dbname = '$publisher' ORDER BY tag_data->>'slot_name', time DESC"}],
       "fieldConfig": {"defaults": {}, "overrides": []}, "options": {"showHeader": true, "cellHeight": "sm"}
     },
     {
@@ -111,10 +111,10 @@
       "fieldConfig": {"defaults": {}, "overrides": []}, "options": {"showHeader": true, "cellHeight": "sm"}
     },
     {
-      "id": 16, "type": "table", "title": "Individual table sync states", "gridPos": {"h": 10, "w": 24, "x": 0, "y": 58},
+      "id": 16, "type": "table", "title": "Table status", "gridPos": {"h": 10, "w": 24, "x": 0, "y": 58},
       "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "WITH latest AS (SELECT max(time) AS time FROM target_table_sync WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription') SELECT s.time, tag_data->>'subscription' AS subscription, tag_data->>'schema' AS schema, tag_data->>'table' AS table, tag_data->>'srsubstate' AS state, data->>'state_name' AS state_name, data->>'synchronization_lsn' AS synchronization_lsn FROM target_table_sync s, latest WHERE s.time = latest.time AND dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY state, schema, table"}],
-      "fieldConfig": {"defaults": {}, "overrides": []}, "options": {"showHeader": true, "cellHeight": "sm"}
+      "targets": [{"refId": "A", "format": "table", "rawSql": "WITH latest AS (SELECT DISTINCT ON (tag_data->>'schema', tag_data->>'table') time, tag_data, data FROM target_table_sync WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY tag_data->>'schema', tag_data->>'table', time DESC) SELECT time, tag_data->>'schema' AS schema, tag_data->>'table' AS table, CASE WHEN (data->>'ready')::int = 1 THEN 'READY' ELSE upper(data->>'state_name') END AS status, data->>'synchronization_lsn' AS synchronization_lsn FROM latest ORDER BY status, schema, table"}],
+      "fieldConfig": {"defaults": {}, "overrides": [{"matcher": {"id": "byName", "options": "status"}, "properties": [{"id": "mappings", "value": [{"type": "value", "options": {"READY": {"text": "READY", "color": "green"}, "DATA COPY": {"text": "DATA COPY", "color": "orange"}, "INITIALIZE": {"text": "INITIALIZE", "color": "yellow"}, "FINISHED COPY": {"text": "FINISHED COPY", "color": "yellow"}, "SYNCHRONIZED": {"text": "SYNCHRONIZED", "color": "yellow"}, "UNKNOWN": {"text": "UNKNOWN", "color": "gray"}}}]}, {"id": "custom.cellOptions", "value": {"type": "color-background"}}]}]}, "options": {"showHeader": true, "cellHeight": "sm"}
     },
     {
       "id": 17, "type": "table", "title": "Replication origins", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 68},
@@ -128,10 +128,12 @@
   "tags": ["postgresql", "logical-replication", "migration", "pgwatch"],
   "templating": {
     "list": [
-      {"name": "publisher", "label": "Publisher", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT dbname AS __text, dbname AS __value FROM source_replication_slot ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
-      {"name": "subscriber", "label": "Subscriber", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT dbname AS __text, dbname AS __value FROM target_subscription ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
-      {"name": "subscription", "label": "Subscription", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT tag_data->>'subscription' AS __text, tag_data->>'subscription' AS __value FROM target_subscription WHERE dbname = '$subscriber' ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
-      {"name": "slot", "label": "Slot", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT tag_data->>'slot_name' AS __text, tag_data->>'slot_name' AS __value FROM source_replication_slot WHERE dbname = '$publisher' ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false}
+      {"name": "source", "label": "Source", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS __text, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS __value FROM source_replication_slot ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
+      {"name": "target", "label": "Target", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS __text, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS __value FROM target_subscription ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
+      {"name": "publisher", "label": "Publisher", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT dbname AS __text, dbname AS __value FROM source_replication_slot WHERE COALESCE(NULLIF(tag_data->>'instance', ''), dbname) = '$source' ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
+      {"name": "subscriber", "label": "Subscriber", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT dbname AS __text, dbname AS __value FROM target_subscription WHERE COALESCE(NULLIF(tag_data->>'instance', ''), dbname) = '$target' AND tag_data->>'migration_pair' IN (SELECT tag_data->>'migration_pair' FROM source_replication_slot WHERE dbname = '$publisher') ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
+      {"name": "slot", "label": "Slot", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT tag_data->>'slot_name' AS __text, tag_data->>'slot_name' AS __value FROM source_replication_slot WHERE dbname = '$publisher' ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
+      {"name": "subscription", "label": "Subscription", "type": "query", "hide": 2, "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT tag_data->>'subscription' AS __text, tag_data->>'subscription' AS __value FROM target_subscription WHERE dbname = '$subscriber' AND tag_data->>'slot_name' = '$slot' ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false}
     ]
   },
   "time": {"from": "now-6h", "to": "now"},

@@ -13,6 +13,7 @@
     migration_pair: aws-orders-prod
   custom_metrics:
     source_replication_slot: 10
+    source_publication: 30
     instance_up: 60
     general_database: 60
 

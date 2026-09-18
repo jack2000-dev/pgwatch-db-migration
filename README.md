@@ -234,7 +234,7 @@ The MyCloud side changes `provider`, `instance`, and `migration_role`:
 ```
 
 Configure publisher custom metrics as
-`{"source_replication_slot":10,"instance_up":60,"general_database":60}`.
+`{"source_replication_slot":10,"source_publication":30,"instance_up":60,"general_database":60}`.
 Configure subscriber custom metrics as
 `{"target_subscription":10,"target_subscription_errors":15,"target_table_sync":30,"target_replication_origins":30,"instance_up":60,"general_database":60}`.
 The complete pair is also shown in `config/sources.yaml` as a non-active
@@ -246,6 +246,7 @@ The exact sampling intervals are:
 | Metric | Interval |
 |---|---:|
 | Publisher logical slots, byte lag, retained WAL | 10 seconds |
+| Publisher publication status and table count | 30 seconds |
 | Subscriber worker health and message age | 10 seconds |
 | Apply/sync errors and PG18 conflicts | 15 seconds |
 | Table synchronization state | 30 seconds |
@@ -281,26 +282,28 @@ ssh -L 3000:127.0.0.1:3000 user@203.156.65.173
 Two dashboards are under **PostgreSQL Migrations**:
 
 - **PostgreSQL Migration Fleet Overview** lists every correlated migration as
-  `source instance → target instance`, database, latest lag, new errors in the
-  last five minutes, table readiness, and cutover readiness. The instance names
-  are the unique profile names configured in the pgwatch Web UI. Click a
+  `source instance → target instance`, database, latest lag in bytes, new
+  errors in the last five minutes, table readiness, and cutover status. Click a
   database name to open the matching detail dashboard.
 - **PostgreSQL Logical Replication Migration** provides detailed charts and
-  tables. Choose publisher, subscriber, subscription, and slot from its
-  dashboard variables.
+  publication/table status tables. Its visible selectors are Source, Target,
+  Publisher, Subscriber, and Slot; the matching subscription is resolved from
+  the selected subscriber and slot.
 
 The overview requires five minutes of healthy history and metrics newer than
 90 seconds before reporting `READY`. During that window the slot must remain
 active and streaming, lag must remain zero, the enabled subscription must keep
 an apply worker, apply/sync error counters must not increase or reset, and all
-subscription tables must remain ready. A known failure is `BLOCKED`; missing,
-stale, newly started, or incomplete data is `UNKNOWN`. Exact row validation is
-still a separate manual cutover check and is not included in this status.
+subscription tables must remain ready. Nonzero lag or one to five new errors is
+`WARNING`; a replication/table failure or more than five new errors is
+`NOT READY`; missing, stale, newly started, or incomplete data is `UNKNOWN`.
+Exact row validation remains a separate manual cutover check.
 
-Nine suggested alert rules are provisioned **paused**, with no contact point.
-They cover inactive required slots, missing apply workers, increasing
-apply/sync errors, 10/20 GiB retained WAL, 1 GiB lag, 60-second message age,
-and a non-ready count unchanged for 15 minutes. Review their scope and
+Eight suggested alert rules are provisioned **paused**, with no contact point.
+They cover inactive required slots, missing apply workers, a combined
+apply-plus-sync error increase greater than five in five minutes, 10/20 GiB
+retained WAL, 1 GiB lag, 60-second message age, and a non-ready count unchanged
+for 15 minutes. Review their scope and
 notification routing before enabling them. Rules tied to subscriptions filter
 on `subenabled`; an intentionally disabled subscription will not trigger
 those rules.
@@ -312,7 +315,7 @@ those rules.
 ```
 
 Validation is read-only. It checks all three services, prints the detected
-source and target versions, checks connectivity, runs all five standalone SQL
+source and target versions, checks connectivity, runs all six standalone SQL
 files, and verifies the Grafana datasource, dashboards, paused alerts, and
 fresh metric rows. Allow up to two minutes for the first metric validation.
 

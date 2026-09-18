@@ -70,8 +70,8 @@ groups:
         labels: {severity: critical}
         isPaused: true
 
-      - uid: lr-apply-errors-increase
-        title: CRITICAL - apply error count increased
+      - uid: lr-logical-replication-errors
+        title: CRITICAL - logical replication errors increased by more than 5
         condition: B
         data:
           - refId: A
@@ -83,7 +83,7 @@ groups:
               format: table
               rawQuery: true
               rawSql: >-
-                SELECT now() AS time, COALESCE(max(increased), 0)::double precision AS value FROM (SELECT CASE WHEN max((data->>'apply_error_count')::bigint) > min((data->>'apply_error_count')::bigint) THEN 1 ELSE 0 END AS increased FROM target_subscription_errors WHERE time > now() - interval '5 minutes' GROUP BY dbname, tag_data->>'subscription') q
+                WITH points AS (SELECT time, dbname, tag_data->>'subscription' AS subscription, COALESCE((data->>'apply_error_count')::bigint, 0) AS apply_errors, COALESCE((data->>'sync_error_count')::bigint, 0) AS sync_errors FROM target_subscription_errors WHERE time > now() - interval '5 minutes'), changes AS (SELECT dbname, subscription, greatest(apply_errors - lag(apply_errors) OVER error_order, 0) + greatest(sync_errors - lag(sync_errors) OVER error_order, 0) AS new_errors FROM points WINDOW error_order AS (PARTITION BY dbname, subscription ORDER BY time)), totals AS (SELECT dbname, subscription, COALESCE(sum(new_errors), 0) AS new_errors FROM changes GROUP BY dbname, subscription) SELECT now() AS time, COALESCE(max(CASE WHEN new_errors > 5 THEN 1 ELSE 0 END), 0)::double precision AS value FROM totals
               refId: A
           - refId: B
             relativeTimeRange: {from: 0, to: 0}
@@ -92,33 +92,7 @@ groups:
         noDataState: NoData
         execErrState: Error
         for: 0s
-        annotations: {summary: "A subscription apply_error_count increased in five minutes."}
-        labels: {severity: critical}
-        isPaused: true
-
-      - uid: lr-sync-errors-increase
-        title: CRITICAL - sync error count increased
-        condition: B
-        data:
-          - refId: A
-            relativeTimeRange: {from: 300, to: 0}
-            datasourceUid: pgwatch-metrics
-            model:
-              datasource: {type: postgres, uid: pgwatch-metrics}
-              editorMode: code
-              format: table
-              rawQuery: true
-              rawSql: >-
-                SELECT now() AS time, COALESCE(max(increased), 0)::double precision AS value FROM (SELECT CASE WHEN max((data->>'sync_error_count')::bigint) > min((data->>'sync_error_count')::bigint) THEN 1 ELSE 0 END AS increased FROM target_subscription_errors WHERE time > now() - interval '5 minutes' GROUP BY dbname, tag_data->>'subscription') q
-              refId: A
-          - refId: B
-            relativeTimeRange: {from: 0, to: 0}
-            datasourceUid: __expr__
-            model: *alert_condition
-        noDataState: NoData
-        execErrState: Error
-        for: 0s
-        annotations: {summary: "A subscription sync_error_count increased in five minutes."}
+        annotations: {summary: "A subscription's combined apply and sync errors increased by more than 5 in five minutes."}
         labels: {severity: critical}
         isPaused: true
 

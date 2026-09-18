@@ -11,6 +11,7 @@ metrics:
             COALESCE(st.worker_type, 'none') AS tag_worker_type,
             COALESCE(ns.nspname || '.' || c.relname, '') AS tag_relation,
             COALESCE(sub.subslotname, '') AS tag_slot_name,
+            pg_catalog.array_to_json(sub.subpublications)::text AS tag_publications,
             sub.subenabled::int AS enabled,
             CASE WHEN NOT sub.subenabled THEN 0
                  WHEN count(*) FILTER (WHERE st.worker_type = 'apply') OVER (PARTITION BY sub.oid) > 0 THEN 1
@@ -38,6 +39,7 @@ metrics:
             COALESCE(st.worker_type, 'none') AS tag_worker_type,
             COALESCE(ns.nspname || '.' || c.relname, '') AS tag_relation,
             COALESCE(sub.subslotname, '') AS tag_slot_name,
+            pg_catalog.array_to_json(sub.subpublications)::text AS tag_publications,
             sub.subenabled::int AS enabled,
             CASE WHEN NOT sub.subenabled THEN 0
                  WHEN count(*) FILTER (WHERE st.worker_type = 'apply') OVER (PARTITION BY sub.oid) > 0 THEN 1
