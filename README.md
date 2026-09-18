@@ -137,10 +137,10 @@ Create the shared passfile referenced by `DB_PGPASSFILE_HOST` with one exact
 entry for every monitoring profile:
 
 ```text
-aws-prod01.internal:5432:orders:pgwatch_monitor:<AWS_ORDERS_PASSWORD>
-openstack-db01.internal:5432:orders:pgwatch_monitor:<MYCLOUD_ORDERS_PASSWORD>
-do-prod01.internal:5432:wallet:pgwatch_monitor:<DO_WALLET_PASSWORD>
-openstack-db02.internal:5432:wallet:pgwatch_monitor:<MYCLOUD_WALLET_PASSWORD>
+aws-publisher.example.com:5432:orders:pgwatch_monitor:<AWS_ORDERS_PASSWORD>
+openstack-subscriber.example.com:5432:orders:pgwatch_monitor:<MYCLOUD_ORDERS_PASSWORD>
+do-publisher.example.com:5432:wallet:pgwatch_monitor:<DO_WALLET_PASSWORD>
+openstack-subscriber-02.example.com:5432:wallet:pgwatch_monitor:<MYCLOUD_WALLET_PASSWORD>
 ```
 
 Add separate `migration_validator` entries only for a pair that will use the
@@ -159,6 +159,10 @@ and pgwatch Web UI passwords, and keep both web bind addresses on loopback for
 the first trial. `SOURCE_DB_*` and `TARGET_DB_*` now describe only the
 optional pair checked by `validate.sh` and `validate-data.sh`; they no longer
 control continuous monitoring.
+
+All hosts, addresses, usernames, and passwords in tracked files are examples.
+Keep real values in the ignored `.env` and passfile, or in pgwatch's Web UI;
+never add them to `README.md` or `config/sources.yaml`.
 
 Put any CA certificates used by profiles in `DB_CERTS_DIR_HOST`. That
 directory is mounted read-only at `/run/pgwatch-certs`. Certificate contents
@@ -187,59 +191,100 @@ stays on the private Docker bridge and uses `sslmode=disable`.
 ## Start
 
 ```bash
-./scripts/start.sh
+sudo ./scripts/start.sh
 ```
 
-On first start the launcher creates the private `pgwatch_config` database and
-initializes pgwatch's `pgwatch` configuration schema. Metrics remain in the
-separate `pgwatch_metrics` database. The source registry starts empty.
+Omit `sudo` when the current account can access the Docker socket. Use this
+launcher instead of a direct `docker compose up`: it builds the internal
+connection URIs, creates the private `pgwatch_config` database, initializes
+pgwatch's configuration schema, and then starts all services. Metrics remain
+in the separate `pgwatch_metrics` database. The source registry starts empty.
+
+Do not continue to Web UI setup if the launcher exits with an error. Re-running
+it is safe; existing configuration and metric data are kept.
 
 ## Manage database profiles
 
 Keep the management console on loopback and open it from your Mac:
 
 ```bash
-ssh -L 8080:127.0.0.1:8080 user@203.156.65.173
+ssh -N -L 8080:127.0.0.1:8080 user@monitor.example.com
 ```
 
+After authentication this command deliberately prints nothing and keeps the
+terminal occupied while the tunnel is active. Leave it running, or use
+`ssh -fN -L 8080:127.0.0.1:8080 user@monitor.example.com` to put it in the
+background. `Ctrl-C` closes a foreground tunnel.
+
 Open <http://127.0.0.1:8080>, sign in with `PGWATCH_WEB_USER` and
-`PGWATCH_WEB_PASSWORD`, and use **Sources** to create two explicit profiles
-for every replicated database:
+`PGWATCH_WEB_PASSWORD` from `.env` (not the SSH password), and use **Sources**
+to create two explicit profiles for every replicated database:
 
 - Publisher: AWS or DigitalOcean database.
 - Subscriber: corresponding MyCloud (OpenStack) database.
 
-Use `kind: postgres`, `group: logical-replication`, a unique source name,
-and a passwordless connection string. For example:
+For each profile:
+
+1. Add a source with a unique name.
+2. Set kind to `postgres`, group to `logical-replication`, and enable it.
+3. Enter the passwordless connection string.
+4. Enter the role-specific custom tags and custom metrics shown below.
+5. Test the connection from the Web UI, then save.
+
+Use this publisher connection string as a template:
 
 ```text
-postgresql://pgwatch_monitor@aws-prod01.internal:5432/orders?sslmode=verify-full&sslrootcert=/run/pgwatch-certs/aws-ca.pem&passfile=/run/pgwatch-secrets/pgpass&application_name=pgwatch-logical&options=-cdefault_transaction_read_only%3Don%20-cstatement_timeout%3D5s%20-clock_timeout%3D1s
+postgresql://pgwatch_monitor@aws-publisher.example.com:5432/orders?sslmode=verify-full&sslrootcert=/run/pgwatch-certs/aws-ca.pem&passfile=/run/pgwatch-secrets/pgpass&application_name=pgwatch-logical&options=-cdefault_transaction_read_only%3Don%20-cstatement_timeout%3D5s%20-clock_timeout%3D1s
 ```
 
 Choose `require` and omit `sslrootcert` when encryption without CA
 verification is the strongest mode currently available. The Web UI's
 connection test runs inside the pgwatch container, so it uses the mounted
-passfile and certificates.
+passfile and certificates. DNS names and container paths must therefore work
+inside pgwatch rather than only on the Mac or VM host.
+
+pgwatch v5.3 invalidates Web UI sessions whenever its container restarts. If a
+page spins after a restart, open the root URL in an incognito window and sign
+in again.
 
 Give both sides the same unique `migration_pair`. Example custom tags:
 
 ```json
-{"provider":"aws","instance":"aws-prod01","environment":"production","migration_role":"publisher","migration_pair":"aws-orders-prod"}
+{"provider":"aws","instance":"aws-publisher-01","environment":"production","migration_role":"publisher","migration_pair":"orders-migration-01"}
 ```
 
 The MyCloud side changes `provider`, `instance`, and `migration_role`:
 
 ```json
-{"provider":"mycloud","instance":"openstack-db01","environment":"production","migration_role":"subscriber","migration_pair":"aws-orders-prod"}
+{"provider":"mycloud","instance":"openstack-subscriber-01","environment":"production","migration_role":"subscriber","migration_pair":"orders-migration-01"}
 ```
+
+Set `instance` to the human-readable cloud instance or endpoint name. PostgreSQL
+cannot report the DNS name used by its client, so the dashboard also shows the
+server IP and port detected independently by each database connection.
 
 Configure publisher custom metrics as
 `{"source_replication_slot":10,"source_publication":30,"instance_up":60,"general_database":60}`.
 Configure subscriber custom metrics as
 `{"target_subscription":10,"target_subscription_errors":15,"target_table_sync":30,"target_replication_origins":30,"instance_up":60,"general_database":60}`.
 The complete pair is also shown in `config/sources.yaml` as a non-active
-reference. Saved profiles persist in the `metrics-data` volume and are picked
-up by pgwatch within its refresh interval.
+reference. Saved profiles persist in the `metrics-data` volume. Wait five
+minutes after saving the first pair before validating dashboards and fresh
+metric rows.
+
+Loopback is the safe default. To expose the Web UI only on the VM's private
+interface instead, replace the example private address below and restart with
+`sudo ./scripts/start.sh`:
+
+```env
+PGWATCH_WEB_BIND_ADDRESS=10.0.0.10
+PGWATCH_WEB_PORT=8080
+```
+
+Restrict that port to the VPN or trusted client addresses. Different Ubuntu
+users do not isolate TCP ports: two services can use port 8080 only when they
+bind different IP addresses. Do not expose the password-based Web UI over
+unencrypted public HTTP; use the SSH tunnel or a secured HTTPS reverse proxy.
 
 The exact sampling intervals are:
 
@@ -262,21 +307,22 @@ The safe default remains <http://127.0.0.1:3000>. To bind Grafana to the
 requested VM address, set this in `.env` and restart the stack:
 
 ```env
-GRAFANA_BIND_ADDRESS=10.220.0.161
+GRAFANA_BIND_ADDRESS=10.0.0.10
 ```
 
-Then open <http://10.220.0.161:3000> over the VPN and log in with
+Then open <http://10.0.0.10:3000> over the VPN and log in with
 `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`. The pgwatch administrative
 UI stays loopback-only.
 
-The public address `203.156.65.173` is not assigned to this VM, so Docker
-cannot bind it directly; public access would require upstream NAT/port
-forwarding or a reverse proxy. Keep TCP port 3000 restricted to trusted VPN or
-client addresses. If the connection is not protected by the VPN, keep
+Docker cannot bind a public DNS or NAT endpoint such as `monitor.example.com`
+unless its resolved address is assigned to the VM; public access otherwise
+requires upstream NAT/port forwarding or a reverse proxy. Keep TCP port 3000
+restricted to trusted VPN or client addresses. If the connection is not
+protected by the VPN, keep
 `GRAFANA_BIND_ADDRESS=127.0.0.1` and use an SSH tunnel:
 
 ```bash
-ssh -L 3000:127.0.0.1:3000 user@203.156.65.173
+ssh -L 3000:127.0.0.1:3000 user@monitor.example.com
 ```
 
 Two dashboards are under **PostgreSQL Migrations**:
@@ -286,18 +332,22 @@ Two dashboards are under **PostgreSQL Migrations**:
   errors in the last five minutes, table readiness, and cutover status. Click a
   database name to open the matching detail dashboard.
 - **PostgreSQL Logical Replication Migration** provides detailed charts and
-  publication/table status tables. Its visible selectors are Source, Target,
-  Publisher, Subscriber, and Slot; the matching subscription is resolved from
-  the selected subscriber and slot.
+  publication/table status tables. Its visible selectors are Source database,
+  Target database, and Slot; the matching subscription is resolved automatically.
+  The dashboard is split into Source on the left and Target on the right. Its two
+  identity tables show database, configured instance, detected server endpoint,
+  and PostgreSQL version. Source and target database-size tables appear below
+  the corresponding health and replication panels. Snapshot tables hide
+  rows older than five minutes so stopped collection is shown as no data rather
+  than as current state.
 
-The overview requires five minutes of healthy history and metrics newer than
-90 seconds before reporting `READY`. During that window the slot must remain
-active and streaming, lag must remain zero, the enabled subscription must keep
-an apply worker, apply/sync error counters must not increase or reset, and all
-subscription tables must remain ready. Nonzero lag or one to five new errors is
-`WARNING`; a replication/table failure or more than five new errors is
-`NOT READY`; missing, stale, newly started, or incomplete data is `UNKNOWN`.
-Exact row validation remains a separate manual cutover check.
+The detail dashboard shows continuous `HEALTHY`, `WARNING`, `CRITICAL`, or
+`UNKNOWN` status from fresh slot, worker, lag, table-readiness, and five-minute
+apply/sync error data. Its cutover status is stricter: `READY` requires healthy
+synchronized replication, zero lag and new errors, all tables ready, and the
+latest exact data comparison to be `PASS`. Until that comparison is recorded it
+shows `DATA CHECK REQUIRED`; a failed comparison shows `DATA CHECK FAILED`.
+The fleet overview applies the same equality gate.
 
 Eight suggested alert rules are provisioned **paused**, with no contact point.
 They cover inactive required slots, missing apply workers, a combined
@@ -311,13 +361,18 @@ those rules.
 ## Validate
 
 ```bash
-./scripts/validate.sh
+sudo ./scripts/validate.sh
 ```
+
+Omit `sudo` when the current account can access the Docker socket. Run
+validation after every profile change and after the five-minute initial
+collection window.
 
 Validation is read-only. It checks all three services, prints the detected
 source and target versions, checks connectivity, runs all six standalone SQL
 files, and verifies the Grafana datasource, dashboards, paused alerts, and
-fresh metric rows. Allow up to two minutes for the first metric validation.
+fresh metric rows. During a run it allows up to two additional minutes for
+individual metric tables to receive fresh rows.
 
 ## Compare source and target data at cutover
 
@@ -325,10 +380,12 @@ The exact validator compares only full-row published tables with matching
 schemas and primary keys. It does not put application rows in pgwatch, Grafana,
 or the metrics database.
 
-Run the command, then follow its write-pause prompt:
+Set `VALIDATION_MIGRATION_PAIR` in `.env` to the same value used by both
+profiles' `migration_pair` tags. Run the command, then follow its write-pause
+prompt:
 
 ```bash
-./scripts/validate-data.sh
+sudo ./scripts/validate-data.sh
 ```
 
 The workflow is:
@@ -343,11 +400,15 @@ The workflow is:
 
 For automation, pause writes first and use `--writes-paused`. Override the
 default five-minute catch-up wait with `--catchup-timeout SECONDS` and the
-report location with `--output PATH`.
+report location with `--output PATH`. Omit `sudo` when the current account
+can access the Docker socket.
 
 Reports are owner-only JSON Lines files under `validation-reports/`. They
 contain table names, primary keys, mismatch types, and changed column names,
-but never differing values. Exit status `0` means equal, `1` means confirmed
+but never differing values. The wrapper also records only the final
+`PASS`, `FAIL`, or `ERROR` status and aggregate row counts in the internal
+metrics database so Grafana can gate cutover readiness; application values are
+never stored there. Exit status `0` means equal, `1` means confirmed
 row differences, and `2` means the comparison was incomplete or invalid.
 
 This validates published table rows only. PostgreSQL logical replication does
@@ -374,11 +435,35 @@ Do not reuse a pgwatch `name`; it becomes the `dbname` label in the metrics
 sink. The dashboard automatically discovers additional names. Keep one shared
 stack unless a network or security boundary requires separate collectors.
 
-## Troubleshoot missing metrics
+## Troubleshoot the Web UI or missing metrics
 
-1. Run `./scripts/validate.sh`; it reports the failing layer.
-2. Check `docker compose logs --since=10m pgwatch` without posting logs that
-   may contain connection details.
+If the Web UI shell loads but **Sources** keeps spinning, check the service
+before changing browser or network settings:
+
+```bash
+sudo ./scripts/validate.sh
+sudo docker compose --env-file .env ps -a pgwatch
+sudo docker compose --env-file .env logs --since=10m pgwatch
+```
+
+- `pgwatch Web UI authentication failed` means the configured bind address is
+  unreachable or the running container has different credentials. Confirm
+  `PGWATCH_WEB_BIND_ADDRESS`, restart with `sudo ./scripts/start.sh`, and sign
+  in again from an incognito window.
+- `relation "pgwatch.source" does not exist` means the configuration schema is
+  missing from the database used by the running container. Run
+  `sudo ./scripts/start.sh`; do not delete volumes or create the table by hand.
+- Empty `ps` and log output means no pgwatch container exists. Run the launcher
+  and address its first error before running validation.
+- Check a listener with `sudo ss -ltnp 'sport = :8080'`. A port conflict
+  prevents the whole container from starting; it cannot break only the
+  Sources tab.
+
+For profile or metric failures:
+
+1. Run `sudo ./scripts/validate.sh`; it reports the failing layer.
+2. Check `sudo docker compose --env-file .env logs --since=10m pgwatch`
+   without posting logs that may contain connection details.
 3. Confirm `DB_PGPASSFILE_HOST` points to a readable mode-`0600` file and
    that its host, port, database, and username fields match the Web UI profile.
 4. Verify DNS, firewall rules, and pg_hba.conf access for the monitoring role.
@@ -391,12 +476,12 @@ stack unless a network or security boundary requires separate collectors.
 7. Check the metrics sink tables:
 
 ```bash
-docker compose exec -T metrics-db psql -U "${METRICS_DB_USER}" \
-  -d "${METRICS_DB_NAME}" -c '\dt'
+sudo docker compose --env-file .env exec -T metrics-db \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\dt"'
 ```
 
 8. Check provisioning logs with
-   `docker compose logs --since=10m grafana`.
+   `sudo docker compose --env-file .env logs --since=10m grafana`.
 
 ## Stop and clean up
 

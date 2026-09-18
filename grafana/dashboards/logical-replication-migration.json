@@ -1,5 +1,7 @@
 {
-  "annotations": {"list": []},
+  "annotations": {
+    "list": []
+  },
   "editable": false,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -8,139 +10,1254 @@
   "liveNow": false,
   "panels": [
     {
-      "id": 1, "type": "stat", "title": "Subscription status", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "SELECT (data->>'subscription_status')::bigint AS value FROM target_subscription WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time DESC LIMIT 1"}],
-      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"-1": {"text": "NO APPLY WORKER", "color": "red"}, "0": {"text": "DISABLED", "color": "blue"}, "1": {"text": "RUNNING", "color": "green"}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
-      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "textMode": "auto", "wideLayout": true}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 18,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT tag_data->>'database' AS database, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS configured_instance, CASE WHEN COALESCE(tag_data->>'server_address', '') = '' THEN 'unknown' ELSE tag_data->>'server_address' || COALESCE(':' || NULLIF(tag_data->>'server_port', ''), '') END AS server_endpoint, COALESCE(NULLIF(tag_data->>'pg_version', ''), 'unknown') AS postgres_version FROM general_database WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Source",
+      "type": "table"
     },
     {
-      "id": 2, "type": "stat", "title": "Slot active", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "SELECT (data->>'active')::int AS value FROM source_replication_slot WHERE dbname = '$publisher' AND tag_data->>'slot_name' = '$slot' ORDER BY time DESC LIMIT 1"}],
-      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "INACTIVE", "color": "red"}, "1": {"text": "ACTIVE", "color": "green"}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
-      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "textMode": "auto", "wideLayout": true}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 19,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT tag_data->>'database' AS database, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS configured_instance, CASE WHEN COALESCE(tag_data->>'server_address', '') = '' THEN 'unknown' ELSE tag_data->>'server_address' || COALESCE(':' || NULLIF(tag_data->>'server_port', ''), '') END AS server_endpoint, COALESCE(NULLIF(tag_data->>'pg_version', ''), 'unknown') AS postgres_version FROM general_database WHERE dbname = '$target' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Target",
+      "type": "table"
     },
     {
-      "id": 3, "type": "stat", "title": "Apply worker count", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "SELECT (data->>'apply_worker_count')::bigint AS value FROM target_subscription WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time DESC LIMIT 1"}],
-      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
-      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "textMode": "auto", "wideLayout": true}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "-1": {
+                  "color": "red",
+                  "text": "NO APPLY WORKER"
+                },
+                "0": {
+                  "color": "blue",
+                  "text": "DISABLED"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "RUNNING"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 8
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT (data->>'subscription_status')::bigint AS value FROM target_subscription WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Subscription status",
+      "type": "stat"
     },
     {
-      "id": 4, "type": "stat", "title": "Table sync worker count", "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "SELECT (data->>'table_sync_worker_count')::bigint AS value FROM target_subscription WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time DESC LIMIT 1"}],
-      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}, "overrides": []},
-      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "textMode": "auto", "wideLayout": true}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "INACTIVE"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "ACTIVE"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT (data->>'active')::int AS value FROM source_replication_slot WHERE dbname = '$source' AND tag_data->>'slot_name' = '$slot' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Slot active",
+      "type": "stat"
     },
     {
-      "id": 5, "type": "timeseries", "title": "Lag (bytes)", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "time_series", "rawSql": "SELECT time AS time, (data->>'lag_bytes')::double precision AS value FROM source_replication_slot WHERE $__timeFilter(time) AND dbname = '$publisher' AND tag_data->>'slot_name' = '$slot' ORDER BY time"}],
-      "fieldConfig": {"defaults": {"unit": "bytes", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1073741824}]}}, "overrides": []},
-      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT (data->>'apply_worker_count')::bigint AS value FROM target_subscription WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Apply worker count",
+      "type": "stat"
     },
     {
-      "id": 6, "type": "timeseries", "title": "Retained WAL bytes over time", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "time_series", "rawSql": "SELECT time AS time, (data->>'retained_wal_bytes')::double precision AS value FROM source_replication_slot WHERE $__timeFilter(time) AND dbname = '$publisher' AND tag_data->>'slot_name' = '$slot' ORDER BY time"}],
-      "fieldConfig": {"defaults": {"unit": "bytes", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 10737418240}, {"color": "red", "value": 21474836480}]}}, "overrides": []},
-      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT (data->>'table_sync_worker_count')::bigint AS value FROM target_subscription WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Table sync worker count",
+      "type": "stat"
     },
     {
-      "id": 7, "type": "timeseries", "title": "Apply error count over time", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "time_series", "rawSql": "SELECT time AS time, (data->>'apply_error_count')::double precision AS value FROM target_subscription_errors WHERE $__timeFilter(time) AND dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time"}],
-      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
-      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1073741824
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT time AS time, (data->>'lag_bytes')::double precision AS value FROM source_replication_slot WHERE $__timeFilter(time) AND dbname = '$source' AND tag_data->>'slot_name' = '$slot' ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Lag (bytes)",
+      "type": "timeseries"
     },
     {
-      "id": 8, "type": "timeseries", "title": "Sync error count over time", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "time_series", "rawSql": "SELECT time AS time, (data->>'sync_error_count')::double precision AS value FROM target_subscription_errors WHERE $__timeFilter(time) AND dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time"}],
-      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
-      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 10737418240
+              },
+              {
+                "color": "red",
+                "value": 21474836480
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT time AS time, (data->>'retained_wal_bytes')::double precision AS value FROM source_replication_slot WHERE $__timeFilter(time) AND dbname = '$source' AND tag_data->>'slot_name' = '$slot' ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Retained WAL bytes over time",
+      "type": "timeseries"
     },
     {
-      "id": 9, "type": "stat", "title": "Ready tables", "gridPos": {"h": 4, "w": 8, "x": 0, "y": 20},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "SELECT (data->>'ready_tables')::bigint AS value FROM target_table_sync WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time DESC LIMIT 1"}],
-      "fieldConfig": {"defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}, "overrides": []},
-      "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 20
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT time AS time, (data->>'apply_error_count')::double precision AS value FROM target_subscription_errors WHERE $__timeFilter(time) AND dbname = '$target' AND tag_data->>'subscription' = '$subscription' ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Apply error count over time",
+      "type": "timeseries"
     },
     {
-      "id": 10, "type": "stat", "title": "Non-ready tables", "gridPos": {"h": 4, "w": 8, "x": 8, "y": 20},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "SELECT (data->>'non_ready_tables')::bigint AS value FROM target_table_sync WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time DESC LIMIT 1"}],
-      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []},
-      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 20
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT time AS time, (data->>'sync_error_count')::double precision AS value FROM target_subscription_errors WHERE $__timeFilter(time) AND dbname = '$target' AND tag_data->>'subscription' = '$subscription' ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Sync error count over time",
+      "type": "timeseries"
     },
     {
-      "id": 11, "type": "stat", "title": "Total tables", "gridPos": {"h": 4, "w": 8, "x": 16, "y": 20},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "SELECT (data->>'total_tables')::bigint AS value FROM target_table_sync WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time DESC LIMIT 1"}],
-      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
-      "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "CONFIGURED": {
+                        "color": "green",
+                        "text": "CONFIGURED"
+                      },
+                      "MISSING": {
+                        "color": "red",
+                        "text": "MISSING"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "WITH latest_subscription AS (SELECT tag_data->>'publications' AS publications FROM target_subscription WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1), wanted AS (SELECT pg_catalog.jsonb_array_elements_text(COALESCE(publications, '[]')::jsonb) AS publication FROM latest_subscription), latest_publications AS (SELECT DISTINCT ON (tag_data->>'publication') time, tag_data, data FROM source_publication WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY tag_data->>'publication', time DESC) SELECT wanted.publication, CASE WHEN publication.tag_data IS NULL THEN 'MISSING' ELSE 'CONFIGURED' END AS status, publication.tag_data->>'owner' AS owner, COALESCE((publication.data->>'table_count')::bigint, 0) AS tables, COALESCE((publication.data->>'all_tables')::int, 0) AS all_tables, COALESCE((publication.data->>'publishes_insert')::int, 0) AS inserts, COALESCE((publication.data->>'publishes_update')::int, 0) AS updates, COALESCE((publication.data->>'publishes_delete')::int, 0) AS deletes, COALESCE((publication.data->>'publishes_truncate')::int, 0) AS truncates FROM wanted LEFT JOIN latest_publications AS publication ON publication.tag_data->>'publication' = wanted.publication ORDER BY wanted.publication",
+          "refId": "A"
+        }
+      ],
+      "title": "Publication status",
+      "type": "table"
     },
     {
-      "id": 12, "type": "table", "title": "Publication status", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "WITH latest_subscription AS (SELECT tag_data->>'publications' AS publications FROM target_subscription WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY time DESC LIMIT 1), wanted AS (SELECT pg_catalog.jsonb_array_elements_text(COALESCE(publications, '[]')::jsonb) AS publication FROM latest_subscription), latest_publications AS (SELECT DISTINCT ON (tag_data->>'publication') time, tag_data, data FROM source_publication WHERE dbname = '$publisher' ORDER BY tag_data->>'publication', time DESC) SELECT wanted.publication, CASE WHEN publication.tag_data IS NULL THEN 'MISSING' ELSE 'CONFIGURED' END AS status, publication.tag_data->>'owner' AS owner, COALESCE((publication.data->>'table_count')::bigint, 0) AS tables, COALESCE((publication.data->>'all_tables')::int, 0) AS all_tables, COALESCE((publication.data->>'publishes_insert')::int, 0) AS inserts, COALESCE((publication.data->>'publishes_update')::int, 0) AS updates, COALESCE((publication.data->>'publishes_delete')::int, 0) AS deletes, COALESCE((publication.data->>'publishes_truncate')::int, 0) AS truncates FROM wanted LEFT JOIN latest_publications AS publication ON publication.tag_data->>'publication' = wanted.publication ORDER BY wanted.publication"}],
-      "fieldConfig": {"defaults": {}, "overrides": [{"matcher": {"id": "byName", "options": "status"}, "properties": [{"id": "mappings", "value": [{"type": "value", "options": {"CONFIGURED": {"text": "CONFIGURED", "color": "green"}, "MISSING": {"text": "MISSING", "color": "red"}}}]}, {"id": "custom.cellOptions", "value": {"type": "color-background"}}]}]},
-      "options": {"showHeader": true, "cellHeight": "sm"}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 300
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT time AS time, (data->>'message_age_seconds')::double precision AS value FROM target_subscription WHERE $__timeFilter(time) AND dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND tag_data->>'worker_type' = 'apply' ORDER BY time",
+          "refId": "A"
+        }
+      ],
+      "title": "Last replication message age",
+      "type": "timeseries"
     },
     {
-      "id": 13, "type": "timeseries", "title": "Last replication message age", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "time_series", "rawSql": "SELECT time AS time, (data->>'message_age_seconds')::double precision AS value FROM target_subscription WHERE $__timeFilter(time) AND dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' AND tag_data->>'worker_type' = 'apply' ORDER BY time"}],
-      "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 60}, {"color": "red", "value": 300}]}}, "overrides": []},
-      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 14,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT DISTINCT ON (tag_data->>'slot_name') time, tag_data->>'slot_name' AS slot_name, tag_data->>'database' AS database, (data->>'active')::int AS active, data->>'restart_lsn' AS restart_lsn, data->>'confirmed_flush_lsn' AS confirmed_flush_lsn, (data->>'lag_bytes')::bigint AS lag_bytes, (data->>'retained_wal_bytes')::bigint AS retained_wal_bytes, tag_data->>'wal_status' AS wal_status, data->>'safe_wal_size_bytes' AS safe_wal_size_bytes, tag_data->>'invalidation_reason' AS invalidation_reason, tag_data->>'replication_application' AS application, tag_data->>'replication_client_addr' AS client_addr, tag_data->>'replication_state' AS replication_state, (data->>'replication_pid')::bigint AS replication_pid, data->>'sent_lsn' AS sent_lsn, data->>'write_lsn' AS write_lsn, data->>'flush_lsn' AS flush_lsn, data->>'replay_lsn' AS replay_lsn FROM source_replication_slot WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY tag_data->>'slot_name', time DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Logical replication slots",
+      "type": "table"
     },
     {
-      "id": 14, "type": "table", "title": "Logical replication slots", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 40},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "SELECT DISTINCT ON (tag_data->>'slot_name') time, tag_data->>'slot_name' AS slot_name, tag_data->>'database' AS database, (data->>'active')::int AS active, data->>'restart_lsn' AS restart_lsn, data->>'confirmed_flush_lsn' AS confirmed_flush_lsn, (data->>'lag_bytes')::bigint AS lag_bytes, (data->>'retained_wal_bytes')::bigint AS retained_wal_bytes, tag_data->>'wal_status' AS wal_status, data->>'safe_wal_size_bytes' AS safe_wal_size_bytes, tag_data->>'invalidation_reason' AS invalidation_reason, tag_data->>'replication_application' AS application, tag_data->>'replication_client_addr' AS client_addr, tag_data->>'replication_state' AS replication_state, (data->>'replication_pid')::bigint AS replication_pid, data->>'sent_lsn' AS sent_lsn, data->>'write_lsn' AS write_lsn, data->>'flush_lsn' AS flush_lsn, data->>'replay_lsn' AS replay_lsn FROM source_replication_slot WHERE dbname = '$publisher' ORDER BY tag_data->>'slot_name', time DESC"}],
-      "fieldConfig": {"defaults": {}, "overrides": []}, "options": {"showHeader": true, "cellHeight": "sm"}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "id": 15,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT max(time) AS time FROM target_subscription WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes') SELECT s.time, tag_data->>'subscription' AS subscription, tag_data->>'worker_type' AS worker_type, (data->>'pid')::bigint AS pid, (data->>'leader_pid')::bigint AS leader_pid, tag_data->>'relation' AS relation, data->>'received_lsn' AS received_lsn, data->>'latest_end_lsn' AS latest_end_lsn, to_timestamp(NULLIF(data->>'last_msg_send_epoch_s', '0')::double precision) AS last_msg_send_time, to_timestamp(NULLIF(data->>'last_msg_receipt_epoch_s', '0')::double precision) AS last_msg_receipt_time, to_timestamp(NULLIF(data->>'latest_end_epoch_s', '0')::double precision) AS latest_end_time, (data->>'message_age_seconds')::double precision AS message_age_seconds FROM target_subscription s, latest WHERE s.time = latest.time AND dbname = '$target' AND tag_data->>'subscription' = '$subscription' ORDER BY worker_type, pid",
+          "refId": "A"
+        }
+      ],
+      "title": "Subscription workers",
+      "type": "table"
     },
     {
-      "id": 15, "type": "table", "title": "Subscription workers", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 49},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "WITH latest AS (SELECT max(time) AS time FROM target_subscription WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription') SELECT s.time, tag_data->>'subscription' AS subscription, tag_data->>'worker_type' AS worker_type, (data->>'pid')::bigint AS pid, (data->>'leader_pid')::bigint AS leader_pid, tag_data->>'relation' AS relation, data->>'received_lsn' AS received_lsn, data->>'latest_end_lsn' AS latest_end_lsn, to_timestamp(NULLIF(data->>'last_msg_send_epoch_s', '0')::double precision) AS last_msg_send_time, to_timestamp(NULLIF(data->>'last_msg_receipt_epoch_s', '0')::double precision) AS last_msg_receipt_time, to_timestamp(NULLIF(data->>'latest_end_epoch_s', '0')::double precision) AS latest_end_time, (data->>'message_age_seconds')::double precision AS message_age_seconds FROM target_subscription s, latest WHERE s.time = latest.time AND dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY worker_type, pid"}],
-      "fieldConfig": {"defaults": {}, "overrides": []}, "options": {"showHeader": true, "cellHeight": "sm"}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "DATA COPY": {
+                        "color": "orange",
+                        "text": "DATA COPY"
+                      },
+                      "FINISHED COPY": {
+                        "color": "yellow",
+                        "text": "FINISHED COPY"
+                      },
+                      "INITIALIZE": {
+                        "color": "yellow",
+                        "text": "INITIALIZE"
+                      },
+                      "READY": {
+                        "color": "green",
+                        "text": "READY"
+                      },
+                      "SYNCHRONIZED": {
+                        "color": "yellow",
+                        "text": "SYNCHRONIZED"
+                      },
+                      "UNKNOWN": {
+                        "color": "gray",
+                        "text": "UNKNOWN"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 16,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (tag_data->>'schema', tag_data->>'table') time, tag_data, data FROM target_table_sync WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes' ORDER BY tag_data->>'schema', tag_data->>'table', time DESC) SELECT time, tag_data->>'schema' AS schema, tag_data->>'table' AS table, CASE WHEN (data->>'ready')::int = 1 THEN 'READY' ELSE upper(data->>'state_name') END AS status, data->>'synchronization_lsn' AS synchronization_lsn FROM latest ORDER BY status, schema, table",
+          "refId": "A"
+        }
+      ],
+      "title": "Table status",
+      "type": "table"
     },
     {
-      "id": 16, "type": "table", "title": "Table status", "gridPos": {"h": 10, "w": 24, "x": 0, "y": 58},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "WITH latest AS (SELECT DISTINCT ON (tag_data->>'schema', tag_data->>'table') time, tag_data, data FROM target_table_sync WHERE dbname = '$subscriber' AND tag_data->>'subscription' = '$subscription' ORDER BY tag_data->>'schema', tag_data->>'table', time DESC) SELECT time, tag_data->>'schema' AS schema, tag_data->>'table' AS table, CASE WHEN (data->>'ready')::int = 1 THEN 'READY' ELSE upper(data->>'state_name') END AS status, data->>'synchronization_lsn' AS synchronization_lsn FROM latest ORDER BY status, schema, table"}],
-      "fieldConfig": {"defaults": {}, "overrides": [{"matcher": {"id": "byName", "options": "status"}, "properties": [{"id": "mappings", "value": [{"type": "value", "options": {"READY": {"text": "READY", "color": "green"}, "DATA COPY": {"text": "DATA COPY", "color": "orange"}, "INITIALIZE": {"text": "INITIALIZE", "color": "yellow"}, "FINISHED COPY": {"text": "FINISHED COPY", "color": "yellow"}, "SYNCHRONIZED": {"text": "SYNCHRONIZED", "color": "yellow"}, "UNKNOWN": {"text": "UNKNOWN", "color": "gray"}}}]}, {"id": "custom.cellOptions", "value": {"type": "color-background"}}]}]}, "options": {"showHeader": true, "cellHeight": "sm"}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "id": 17,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT max(time) AS time FROM target_replication_origins WHERE dbname = '$target' AND time > now() - interval '5 minutes') SELECT s.time, tag_data->>'origin' AS origin, tag_data->>'subscription' AS subscription, (data->>'active')::int AS active_inferred, data->>'remote_lsn' AS remote_lsn, data->>'local_lsn' AS local_lsn, (data->>'origin_count')::bigint AS origin_count, (data->>'active_origin_count')::bigint AS active_origin_count FROM target_replication_origins s, latest WHERE s.time = latest.time AND dbname = '$target' ORDER BY origin",
+          "refId": "A"
+        }
+      ],
+      "title": "Replication origins",
+      "type": "table"
     },
     {
-      "id": 17, "type": "table", "title": "Replication origins", "gridPos": {"h": 9, "w": 24, "x": 0, "y": 68},
-      "datasource": {"type": "postgres", "uid": "pgwatch-metrics"},
-      "targets": [{"refId": "A", "format": "table", "rawSql": "WITH latest AS (SELECT max(time) AS time FROM target_replication_origins WHERE dbname = '$subscriber') SELECT s.time, tag_data->>'origin' AS origin, tag_data->>'subscription' AS subscription, (data->>'active')::int AS active_inferred, data->>'remote_lsn' AS remote_lsn, data->>'local_lsn' AS local_lsn, (data->>'origin_count')::bigint AS origin_count, (data->>'active_origin_count')::bigint AS active_origin_count FROM target_replication_origins s, latest WHERE s.time = latest.time AND dbname = '$subscriber' ORDER BY origin"}],
-      "fieldConfig": {"defaults": {}, "overrides": []}, "options": {"showHeader": true, "cellHeight": "sm"}
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "database_size"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 58
+      },
+      "id": 20,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT tag_data->>'database' AS database, (data->>'database_size_bytes')::bigint AS database_size FROM general_database WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Source database size",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "database_size"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 58
+      },
+      "id": 21,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT tag_data->>'database' AS database, (data->>'database_size_bytes')::bigint AS database_size FROM general_database WHERE dbname = '$target' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Target database size",
+      "type": "table"
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "Replication health",
+      "description": "HEALTHY requires fresh active/streaming slot data, a running apply worker, all tables ready, zero lag, and no new apply/sync errors in five minutes.",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH slot_state AS (SELECT max(time) AS latest, (array_agg(COALESCE((data->>'active')::int, 0) ORDER BY time DESC))[1] AS active, (array_agg(COALESCE((data->>'publisher_streaming_count')::int, 0) ORDER BY time DESC))[1] AS streaming, (array_agg(COALESCE((data->>'lag_bytes')::bigint, 0) ORDER BY time DESC))[1] AS lag_bytes FROM source_replication_slot WHERE dbname = '$source' AND tag_data->>'slot_name' = '$slot' AND time > now() - interval '5 minutes'), subscription_state AS (SELECT max(time) AS latest, (array_agg(COALESCE((data->>'enabled')::int, 0) ORDER BY time DESC))[1] AS enabled, (array_agg(COALESCE((data->>'subscription_status')::int, -1) ORDER BY time DESC))[1] AS subscription_status, (array_agg(COALESCE((data->>'apply_worker_count')::int, 0) ORDER BY time DESC))[1] AS apply_workers FROM target_subscription WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes'), error_points AS (SELECT time, COALESCE((data->>'apply_error_count')::bigint, 0) AS apply_errors, COALESCE((data->>'sync_error_count')::bigint, 0) AS sync_errors, COALESCE((data->>'stats_reset_epoch_s')::double precision, 0) AS reset_epoch FROM target_subscription_errors WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes'), error_changes AS (SELECT time, reset_epoch, greatest(apply_errors - lag(apply_errors) OVER error_order, 0) + greatest(sync_errors - lag(sync_errors) OVER error_order, 0) AS new_errors FROM error_points WINDOW error_order AS (ORDER BY time)), error_state AS (SELECT max(time) AS latest, COALESCE(sum(new_errors), 0)::bigint AS new_errors, COALESCE(min(reset_epoch) = max(reset_epoch), false) AS reset_stable FROM error_changes), table_state AS (SELECT max(time) AS latest, (array_agg(COALESCE((data->>'total_tables')::bigint, 0) ORDER BY time DESC))[1] AS total_tables, (array_agg(COALESCE((data->>'non_ready_tables')::bigint, 0) ORDER BY time DESC))[1] AS non_ready_tables FROM target_table_sync WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes') SELECT CASE WHEN s.latest IS NULL OR sub.latest IS NULL OR e.latest IS NULL OR t.latest IS NULL OR s.latest < now() - interval '90 seconds' OR sub.latest < now() - interval '90 seconds' OR e.latest < now() - interval '90 seconds' OR t.latest < now() - interval '90 seconds' THEN 3 WHEN s.active <> 1 OR s.streaming < 1 OR sub.enabled <> 1 OR sub.subscription_status <> 1 OR sub.apply_workers < 1 OR t.total_tables < 1 OR t.non_ready_tables > 0 OR e.new_errors > 5 THEN 2 WHEN s.lag_bytes > 0 OR e.new_errors > 0 OR NOT e.reset_stable THEN 1 ELSE 0 END AS health, e.new_errors AS errors_last_5m FROM slot_state s CROSS JOIN subscription_state sub CROSS JOIN error_state e CROSS JOIN table_state t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "health"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Health"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "HEALTHY",
+                        "color": "green"
+                      },
+                      "1": {
+                        "text": "WARNING",
+                        "color": "orange"
+                      },
+                      "2": {
+                        "text": "CRITICAL",
+                        "color": "red"
+                      },
+                      "3": {
+                        "text": "UNKNOWN",
+                        "color": "gray"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "errors_last_5m"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Errors (5m)"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 6
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 24,
+      "type": "stat",
+      "title": "Cutover status",
+      "description": "READY requires healthy synchronized replication, zero new errors, all tables ready, and the latest exact data comparison to pass.",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH slot_state AS (SELECT max(time) AS latest, (array_agg(COALESCE((data->>'active')::int, 0) ORDER BY time DESC))[1] AS active, (array_agg(COALESCE((data->>'publisher_streaming_count')::int, 0) ORDER BY time DESC))[1] AS streaming, (array_agg(COALESCE((data->>'lag_bytes')::bigint, 0) ORDER BY time DESC))[1] AS lag_bytes FROM source_replication_slot WHERE dbname = '$source' AND tag_data->>'slot_name' = '$slot' AND time > now() - interval '5 minutes'), subscription_state AS (SELECT max(time) AS latest, (array_agg(COALESCE((data->>'enabled')::int, 0) ORDER BY time DESC))[1] AS enabled, (array_agg(COALESCE((data->>'subscription_status')::int, -1) ORDER BY time DESC))[1] AS subscription_status, (array_agg(COALESCE((data->>'apply_worker_count')::int, 0) ORDER BY time DESC))[1] AS apply_workers FROM target_subscription WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes'), error_points AS (SELECT time, COALESCE((data->>'apply_error_count')::bigint, 0) AS apply_errors, COALESCE((data->>'sync_error_count')::bigint, 0) AS sync_errors, COALESCE((data->>'stats_reset_epoch_s')::double precision, 0) AS reset_epoch FROM target_subscription_errors WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes'), error_changes AS (SELECT time, reset_epoch, greatest(apply_errors - lag(apply_errors) OVER error_order, 0) + greatest(sync_errors - lag(sync_errors) OVER error_order, 0) AS new_errors FROM error_points WINDOW error_order AS (ORDER BY time)), error_state AS (SELECT max(time) AS latest, COALESCE(sum(new_errors), 0)::bigint AS new_errors, COALESCE(min(reset_epoch) = max(reset_epoch), false) AS reset_stable FROM error_changes), table_state AS (SELECT max(time) AS latest, (array_agg(COALESCE((data->>'total_tables')::bigint, 0) ORDER BY time DESC))[1] AS total_tables, (array_agg(COALESCE((data->>'non_ready_tables')::bigint, 0) ORDER BY time DESC))[1] AS non_ready_tables FROM target_table_sync WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes'), pair_state AS (SELECT tag_data->>'migration_pair' AS migration_pair FROM general_database WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1), validation_state AS (SELECT status FROM cutover_validation WHERE migration_pair = (SELECT migration_pair FROM pair_state) ORDER BY validated_at DESC LIMIT 1) SELECT CASE WHEN s.latest IS NULL OR sub.latest IS NULL OR e.latest IS NULL OR t.latest IS NULL OR s.latest < now() - interval '90 seconds' OR sub.latest < now() - interval '90 seconds' OR e.latest < now() - interval '90 seconds' OR t.latest < now() - interval '90 seconds' THEN 4 WHEN s.active <> 1 OR s.streaming < 1 OR sub.enabled <> 1 OR sub.subscription_status <> 1 OR sub.apply_workers < 1 OR t.total_tables < 1 OR t.non_ready_tables > 0 OR e.new_errors > 5 THEN 2 WHEN s.lag_bytes > 0 OR e.new_errors > 0 OR NOT e.reset_stable THEN 1 WHEN (SELECT status FROM validation_state) IS NULL THEN 3 WHEN (SELECT status FROM validation_state) <> 'PASS' THEN 5 ELSE 0 END AS cutover_status FROM slot_state s CROSS JOIN subscription_state sub CROSS JOIN error_state e CROSS JOIN table_state t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "READY",
+                  "color": "green"
+                },
+                "1": {
+                  "text": "WARNING",
+                  "color": "orange"
+                },
+                "2": {
+                  "text": "NOT READY",
+                  "color": "red"
+                },
+                "3": {
+                  "text": "DATA CHECK REQUIRED",
+                  "color": "blue"
+                },
+                "4": {
+                  "text": "UNKNOWN",
+                  "color": "gray"
+                },
+                "5": {
+                  "text": "DATA CHECK FAILED",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 23,
+      "type": "table",
+      "title": "Table readiness",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT tag_data->>'subscription' AS subscription, (data->>'ready_tables')::bigint AS ready_tables, (data->>'non_ready_tables')::bigint AS non_ready_tables, (data->>'total_tables')::bigint AS total_tables, CASE WHEN (data->>'total_tables')::bigint > 0 AND (data->>'non_ready_tables')::bigint = 0 THEN 'READY' ELSE 'NOT READY' END AS status, time AS sampled_at FROM target_table_sync WHERE dbname = '$target' AND tag_data->>'subscription' = '$subscription' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "READY": {
+                        "text": "READY",
+                        "color": "green"
+                      },
+                      "NOT READY": {
+                        "text": "NOT READY",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "non_ready_tables"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
     }
   ],
   "refresh": "10s",
   "schemaVersion": 42,
-  "tags": ["postgresql", "logical-replication", "migration", "pgwatch"],
+  "tags": [
+    "postgresql",
+    "logical-replication",
+    "migration",
+    "pgwatch"
+  ],
   "templating": {
     "list": [
-      {"name": "source", "label": "Source", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS __text, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS __value FROM source_replication_slot ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
-      {"name": "target", "label": "Target", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS __text, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS __value FROM target_subscription ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
-      {"name": "publisher", "label": "Publisher", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT dbname AS __text, dbname AS __value FROM source_replication_slot WHERE COALESCE(NULLIF(tag_data->>'instance', ''), dbname) = '$source' ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
-      {"name": "subscriber", "label": "Subscriber", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT dbname AS __text, dbname AS __value FROM target_subscription WHERE COALESCE(NULLIF(tag_data->>'instance', ''), dbname) = '$target' AND tag_data->>'migration_pair' IN (SELECT tag_data->>'migration_pair' FROM source_replication_slot WHERE dbname = '$publisher') ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
-      {"name": "slot", "label": "Slot", "type": "query", "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT tag_data->>'slot_name' AS __text, tag_data->>'slot_name' AS __value FROM source_replication_slot WHERE dbname = '$publisher' ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false},
-      {"name": "subscription", "label": "Subscription", "type": "query", "hide": 2, "datasource": {"type": "postgres", "uid": "pgwatch-metrics"}, "query": "SELECT DISTINCT tag_data->>'subscription' AS __text, tag_data->>'subscription' AS __value FROM target_subscription WHERE dbname = '$subscriber' AND tag_data->>'slot_name' = '$slot' ORDER BY 1", "refresh": 1, "includeAll": false, "multi": false}
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "pgwatch-metrics"
+        },
+        "includeAll": false,
+        "label": "Source",
+        "multi": false,
+        "name": "source",
+        "query": "SELECT database || ' — ' || endpoint AS __text, profile AS __value FROM (SELECT DISTINCT ON (dbname) dbname AS profile, COALESCE(NULLIF(tag_data->>'database', ''), dbname) AS database, COALESCE(NULLIF(tag_data->>'server_address', ''), NULLIF(tag_data->>'instance', ''), dbname) AS endpoint FROM general_database WHERE tag_data->>'migration_role' = 'publisher' AND time > now() - interval '5 minutes' ORDER BY dbname, time DESC) AS latest ORDER BY database, endpoint",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "pgwatch-metrics"
+        },
+        "includeAll": false,
+        "label": "Target",
+        "multi": false,
+        "name": "target",
+        "query": "SELECT database || ' — ' || endpoint AS __text, profile AS __value FROM (SELECT DISTINCT ON (dbname) dbname AS profile, COALESCE(NULLIF(tag_data->>'database', ''), dbname) AS database, COALESCE(NULLIF(tag_data->>'server_address', ''), NULLIF(tag_data->>'instance', ''), dbname) AS endpoint FROM general_database WHERE tag_data->>'migration_role' = 'subscriber' AND tag_data->>'migration_pair' = (SELECT tag_data->>'migration_pair' FROM general_database WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1) AND time > now() - interval '5 minutes' ORDER BY dbname, time DESC) AS latest ORDER BY database, endpoint",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "pgwatch-metrics"
+        },
+        "includeAll": false,
+        "label": "Slot",
+        "multi": false,
+        "name": "slot",
+        "query": "SELECT DISTINCT tag_data->>'slot_name' AS __text, tag_data->>'slot_name' AS __value FROM source_replication_slot WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY 1",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "pgwatch-metrics"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "label": "Subscription",
+        "multi": false,
+        "name": "subscription",
+        "query": "SELECT DISTINCT tag_data->>'subscription' AS __text, tag_data->>'subscription' AS __value FROM target_subscription WHERE dbname = '$target' AND tag_data->>'slot_name' = '$slot' AND time > now() - interval '5 minutes' ORDER BY 1",
+        "refresh": 1,
+        "type": "query"
+      }
     ]
   },
-  "time": {"from": "now-6h", "to": "now"},
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "PostgreSQL Logical Replication Migration",
   "uid": "logical-replication-migration",
-  "version": 1,
+  "version": 8,
   "weekStart": ""
 }

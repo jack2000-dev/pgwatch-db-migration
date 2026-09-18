@@ -13,7 +13,7 @@
       "id": 1,
       "type": "table",
       "title": "Migration cutover readiness",
-      "description": "READY requires five stable minutes; WARNING means nonzero lag or 1-5 new errors; NOT READY means replication failure, non-ready tables, or more than 5 new errors; missing or stale metrics are UNKNOWN.",
+      "description": "READY requires five stable minutes, synchronized tables, zero lag and new errors, plus a successful exact source/target data comparison; otherwise status is graded or requests a data check.",
       "gridPos": {
         "h": 20,
         "w": 24,
@@ -28,7 +28,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH slot_window AS (SELECT time, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS source, dbname AS publisher, tag_data->>'migration_pair' AS migration_pair, tag_data->>'slot_name' AS slot, tag_data->>'database' AS database, COALESCE((data->>'lag_bytes')::bigint, 0) AS lag_bytes, COALESCE((data->>'active')::int, 0) AS active, COALESCE((data->>'publisher_streaming_count')::int, 0) AS streaming FROM source_replication_slot WHERE time >= now() - interval '5 minutes' AND COALESCE(tag_data->>'migration_pair', '') <> ''), slots AS (SELECT source, publisher, migration_pair, slot, (array_agg(database ORDER BY time DESC))[1] AS database, (array_agg(lag_bytes ORDER BY time DESC))[1] AS lag_bytes, min(time) AS first_seen, max(time) AS last_seen, bool_and(active = 1 AND streaming > 0) AS healthy, bool_and(lag_bytes = 0) AS lag_zero FROM slot_window GROUP BY source, publisher, migration_pair, slot), subscription_window AS (SELECT time, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS target, dbname AS subscriber, tag_data->>'migration_pair' AS migration_pair, tag_data->>'subscription' AS subscription, tag_data->>'slot_name' AS slot, COALESCE((data->>'enabled')::int, 0) AS enabled, COALESCE((data->>'subscription_status')::int, -1) AS subscription_status, COALESCE((data->>'apply_worker_count')::int, 0) AS apply_workers FROM target_subscription WHERE time >= now() - interval '5 minutes' AND COALESCE(tag_data->>'migration_pair', '') <> ''), subscriptions AS (SELECT target, subscriber, migration_pair, subscription, slot, min(time) AS first_seen, max(time) AS last_seen, bool_and(enabled = 1 AND subscription_status = 1 AND apply_workers > 0) AS healthy FROM subscription_window GROUP BY target, subscriber, migration_pair, subscription, slot), error_points AS (SELECT time, dbname AS subscriber, tag_data->>'subscription' AS subscription, COALESCE((data->>'apply_error_count')::bigint, 0) AS apply_errors, COALESCE((data->>'sync_error_count')::bigint, 0) AS sync_errors, COALESCE((data->>'stats_reset_epoch_s')::double precision, 0) AS reset_epoch FROM target_subscription_errors WHERE time >= now() - interval '5 minutes'), error_changes AS (SELECT *, greatest(apply_errors - lag(apply_errors) OVER error_order, 0) + greatest(sync_errors - lag(sync_errors) OVER error_order, 0) AS new_errors FROM error_points WINDOW error_order AS (PARTITION BY subscriber, subscription ORDER BY time)), errors AS (SELECT subscriber, subscription, min(time) AS first_seen, max(time) AS last_seen, COALESCE(sum(new_errors), 0)::bigint AS new_errors, min(reset_epoch) = max(reset_epoch) AS reset_stable FROM error_changes GROUP BY subscriber, subscription), table_window AS (SELECT time, dbname AS subscriber, tag_data->>'subscription' AS subscription, COALESCE((data->>'total_tables')::bigint, 0) AS total_tables, COALESCE((data->>'non_ready_tables')::bigint, 0) AS non_ready_tables FROM target_table_sync WHERE time >= now() - interval '5 minutes'), tables AS (SELECT subscriber, subscription, (array_agg(total_tables ORDER BY time DESC))[1] AS total_tables, (array_agg(non_ready_tables ORDER BY time DESC))[1] AS non_ready_tables, min(time) AS first_seen, max(time) AS last_seen, bool_and(total_tables > 0 AND non_ready_tables = 0) AS healthy FROM table_window GROUP BY subscriber, subscription), pairs AS (SELECT COALESCE(s.migration_pair, sub.migration_pair) AS migration_pair, s.source, sub.target, s.publisher, sub.subscriber, COALESCE(s.slot, sub.slot) AS slot, sub.subscription, s.database, s.lag_bytes, s.first_seen AS source_first_seen, s.last_seen AS source_last_seen, s.healthy AS source_healthy, s.lag_zero, sub.first_seen AS target_first_seen, sub.last_seen AS target_last_seen, sub.healthy AS target_healthy FROM slots AS s FULL OUTER JOIN subscriptions AS sub ON sub.migration_pair = s.migration_pair AND sub.slot = s.slot), readiness AS (SELECT COALESCE(p.source, '?') || ' → ' || COALESCE(p.target, '?') AS instance, COALESCE(p.database, '—') AS database, p.lag_bytes, e.new_errors AS errors, CASE WHEN t.last_seen IS NULL OR t.last_seen < now() - interval '90 seconds' THEN 'UNKNOWN' WHEN t.total_tables > 0 AND t.non_ready_tables = 0 THEN 'YES' ELSE 'NO' END AS tables_ready, CASE WHEN p.publisher IS NULL OR p.subscriber IS NULL OR p.subscription IS NULL OR e.subscriber IS NULL OR t.subscriber IS NULL OR p.source_last_seen < now() - interval '90 seconds' OR p.target_last_seen < now() - interval '90 seconds' OR e.last_seen < now() - interval '90 seconds' OR t.last_seen < now() - interval '90 seconds' OR p.source_first_seen > now() - interval '4 minutes' OR p.target_first_seen > now() - interval '4 minutes' OR e.first_seen > now() - interval '4 minutes' OR t.first_seen > now() - interval '4 minutes' THEN 'UNKNOWN' WHEN NOT p.source_healthy OR NOT p.target_healthy OR NOT t.healthy OR e.new_errors > 5 THEN 'NOT READY' WHEN NOT p.lag_zero OR e.new_errors > 0 OR NOT e.reset_stable THEN 'WARNING' ELSE 'READY' END AS cutover_status, p.source, p.target, p.publisher, p.subscriber, p.subscription, p.slot FROM pairs AS p LEFT JOIN errors AS e ON e.subscriber = p.subscriber AND e.subscription = p.subscription LEFT JOIN tables AS t ON t.subscriber = p.subscriber AND t.subscription = p.subscription) SELECT instance, database, lag_bytes, errors, tables_ready, cutover_status, source, target, publisher, subscriber, subscription, slot FROM readiness ORDER BY CASE cutover_status WHEN 'NOT READY' THEN 0 WHEN 'WARNING' THEN 1 WHEN 'UNKNOWN' THEN 2 ELSE 3 END, instance, database"
+          "rawSql": "WITH slot_window AS (SELECT time, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS source, dbname AS publisher, tag_data->>'migration_pair' AS migration_pair, tag_data->>'slot_name' AS slot, tag_data->>'database' AS database, COALESCE((data->>'lag_bytes')::bigint, 0) AS lag_bytes, COALESCE((data->>'active')::int, 0) AS active, COALESCE((data->>'publisher_streaming_count')::int, 0) AS streaming FROM source_replication_slot WHERE time >= now() - interval '5 minutes' AND COALESCE(tag_data->>'migration_pair', '') <> ''), slots AS (SELECT source, publisher, migration_pair, slot, (array_agg(database ORDER BY time DESC))[1] AS database, (array_agg(lag_bytes ORDER BY time DESC))[1] AS lag_bytes, min(time) AS first_seen, max(time) AS last_seen, bool_and(active = 1 AND streaming > 0) AS healthy, bool_and(lag_bytes = 0) AS lag_zero FROM slot_window GROUP BY source, publisher, migration_pair, slot), subscription_window AS (SELECT time, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS target, dbname AS subscriber, tag_data->>'migration_pair' AS migration_pair, tag_data->>'subscription' AS subscription, tag_data->>'slot_name' AS slot, COALESCE((data->>'enabled')::int, 0) AS enabled, COALESCE((data->>'subscription_status')::int, -1) AS subscription_status, COALESCE((data->>'apply_worker_count')::int, 0) AS apply_workers FROM target_subscription WHERE time >= now() - interval '5 minutes' AND COALESCE(tag_data->>'migration_pair', '') <> ''), subscriptions AS (SELECT target, subscriber, migration_pair, subscription, slot, min(time) AS first_seen, max(time) AS last_seen, bool_and(enabled = 1 AND subscription_status = 1 AND apply_workers > 0) AS healthy FROM subscription_window GROUP BY target, subscriber, migration_pair, subscription, slot), error_points AS (SELECT time, dbname AS subscriber, tag_data->>'subscription' AS subscription, COALESCE((data->>'apply_error_count')::bigint, 0) AS apply_errors, COALESCE((data->>'sync_error_count')::bigint, 0) AS sync_errors, COALESCE((data->>'stats_reset_epoch_s')::double precision, 0) AS reset_epoch FROM target_subscription_errors WHERE time >= now() - interval '5 minutes'), error_changes AS (SELECT *, greatest(apply_errors - lag(apply_errors) OVER error_order, 0) + greatest(sync_errors - lag(sync_errors) OVER error_order, 0) AS new_errors FROM error_points WINDOW error_order AS (PARTITION BY subscriber, subscription ORDER BY time)), errors AS (SELECT subscriber, subscription, min(time) AS first_seen, max(time) AS last_seen, COALESCE(sum(new_errors), 0)::bigint AS new_errors, min(reset_epoch) = max(reset_epoch) AS reset_stable FROM error_changes GROUP BY subscriber, subscription), table_window AS (SELECT time, dbname AS subscriber, tag_data->>'subscription' AS subscription, COALESCE((data->>'total_tables')::bigint, 0) AS total_tables, COALESCE((data->>'non_ready_tables')::bigint, 0) AS non_ready_tables FROM target_table_sync WHERE time >= now() - interval '5 minutes'), tables AS (SELECT subscriber, subscription, (array_agg(total_tables ORDER BY time DESC))[1] AS total_tables, (array_agg(non_ready_tables ORDER BY time DESC))[1] AS non_ready_tables, min(time) AS first_seen, max(time) AS last_seen, bool_and(total_tables > 0 AND non_ready_tables = 0) AS healthy FROM table_window GROUP BY subscriber, subscription), validations AS (SELECT DISTINCT ON (migration_pair) migration_pair, status, validated_at FROM cutover_validation ORDER BY migration_pair, validated_at DESC), pairs AS (SELECT COALESCE(s.migration_pair, sub.migration_pair) AS migration_pair, s.source, sub.target, s.publisher, sub.subscriber, COALESCE(s.slot, sub.slot) AS slot, sub.subscription, s.database, s.lag_bytes, s.first_seen AS source_first_seen, s.last_seen AS source_last_seen, s.healthy AS source_healthy, s.lag_zero, sub.first_seen AS target_first_seen, sub.last_seen AS target_last_seen, sub.healthy AS target_healthy FROM slots AS s FULL OUTER JOIN subscriptions AS sub ON sub.migration_pair = s.migration_pair AND sub.slot = s.slot), readiness AS (SELECT COALESCE(p.source, '?') || ' → ' || COALESCE(p.target, '?') AS instance, COALESCE(p.database, '—') AS database, p.lag_bytes, e.new_errors AS errors, v.status AS data_validation, v.validated_at, CASE WHEN t.last_seen IS NULL OR t.last_seen < now() - interval '90 seconds' THEN 'UNKNOWN' WHEN t.total_tables > 0 AND t.non_ready_tables = 0 THEN 'YES' ELSE 'NO' END AS tables_ready, CASE WHEN p.publisher IS NULL OR p.subscriber IS NULL OR p.subscription IS NULL OR e.subscriber IS NULL OR t.subscriber IS NULL OR p.source_last_seen < now() - interval '90 seconds' OR p.target_last_seen < now() - interval '90 seconds' OR e.last_seen < now() - interval '90 seconds' OR t.last_seen < now() - interval '90 seconds' OR p.source_first_seen > now() - interval '4 minutes' OR p.target_first_seen > now() - interval '4 minutes' OR e.first_seen > now() - interval '4 minutes' OR t.first_seen > now() - interval '4 minutes' THEN 'UNKNOWN' WHEN NOT p.source_healthy OR NOT p.target_healthy OR NOT t.healthy OR e.new_errors > 5 THEN 'NOT READY' WHEN NOT p.lag_zero OR e.new_errors > 0 OR NOT e.reset_stable THEN 'WARNING' WHEN v.status IS NULL THEN 'DATA CHECK REQUIRED' WHEN v.status <> 'PASS' THEN 'NOT READY' ELSE 'READY' END AS cutover_status, p.source, p.target, p.publisher, p.subscriber, p.subscription, p.slot FROM pairs AS p LEFT JOIN errors AS e ON e.subscriber = p.subscriber AND e.subscription = p.subscription LEFT JOIN tables AS t ON t.subscriber = p.subscriber AND t.subscription = p.subscription LEFT JOIN validations AS v ON v.migration_pair = p.migration_pair) SELECT instance, database, lag_bytes, errors, tables_ready, data_validation, validated_at, cutover_status, source, target, publisher, subscriber, subscription, slot FROM readiness ORDER BY CASE cutover_status WHEN 'NOT READY' THEN 0 WHEN 'WARNING' THEN 1 WHEN 'DATA CHECK REQUIRED' THEN 2 WHEN 'UNKNOWN' THEN 3 ELSE 4 END, instance, database"
         }
       ],
       "fieldConfig": {
@@ -45,7 +45,7 @@
                 "value": [
                   {
                     "title": "Open migration details",
-                    "url": "/d/logical-replication-migration/postgresql-logical-replication-migration?var-source=${__data.fields[\"source\"]}&var-target=${__data.fields[\"target\"]}&var-publisher=${__data.fields[\"publisher\"]}&var-subscriber=${__data.fields[\"subscriber\"]}&var-slot=${__data.fields[\"slot\"]}"
+                    "url": "/d/logical-replication-migration/postgresql-logical-replication-migration?var-source=${__data.fields[\"publisher\"]}&var-target=${__data.fields[\"subscriber\"]}&var-slot=${__data.fields[\"slot\"]}"
                   }
                 ]
               }
@@ -194,6 +194,46 @@
                       "UNKNOWN": {
                         "text": "UNKNOWN",
                         "color": "gray"
+                      },
+                      "DATA CHECK REQUIRED": {
+                        "text": "DATA CHECK REQUIRED",
+                        "color": "blue"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data_validation"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "PASS": {
+                        "text": "PASS",
+                        "color": "green"
+                      },
+                      "FAIL": {
+                        "text": "FAIL",
+                        "color": "red"
+                      },
+                      "ERROR": {
+                        "text": "ERROR",
+                        "color": "red"
                       }
                     }
                   }
@@ -247,6 +287,6 @@
   "timezone": "browser",
   "title": "PostgreSQL Migration Fleet Overview",
   "uid": "logical-replication-overview",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

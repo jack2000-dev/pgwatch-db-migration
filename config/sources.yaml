@@ -1,33 +1,33 @@
 # Reference only: live profiles are stored in PostgreSQL and managed at the
 # pgwatch Web UI. Passwords are resolved from /run/pgwatch-secrets/pgpass.
-- name: aws-prod01-orders-src
-  conn_str: postgresql://pgwatch_monitor@aws-prod01.internal:5432/orders?sslmode=verify-full&sslrootcert=/run/pgwatch-certs/aws-ca.pem&passfile=/run/pgwatch-secrets/pgpass
+- name: aws-publisher-orders-src
+  conn_str: postgresql://pgwatch_monitor@aws-publisher.example.com:5432/orders?sslmode=verify-full&sslrootcert=/run/pgwatch-certs/aws-ca.pem&passfile=/run/pgwatch-secrets/pgpass
   kind: postgres
   is_enabled: true
   group: logical-replication
   custom_tags:
     provider: aws
-    instance: aws-prod01
+    instance: aws-publisher-01
     environment: production
     migration_role: publisher
-    migration_pair: aws-orders-prod
+    migration_pair: orders-migration-01
   custom_metrics:
     source_replication_slot: 10
     source_publication: 30
     instance_up: 60
     general_database: 60
 
-- name: mycloud-prod01-orders-dst
-  conn_str: postgresql://pgwatch_monitor@openstack-db01.internal:5432/orders?sslmode=verify-full&sslrootcert=/run/pgwatch-certs/mycloud-ca.pem&passfile=/run/pgwatch-secrets/pgpass
+- name: openstack-subscriber-orders-dst
+  conn_str: postgresql://pgwatch_monitor@openstack-subscriber.example.com:5432/orders?sslmode=verify-full&sslrootcert=/run/pgwatch-certs/mycloud-ca.pem&passfile=/run/pgwatch-secrets/pgpass
   kind: postgres
   is_enabled: true
   group: logical-replication
   custom_tags:
     provider: mycloud
-    instance: openstack-db01
+    instance: openstack-subscriber-01
     environment: production
     migration_role: subscriber
-    migration_pair: aws-orders-prod
+    migration_pair: orders-migration-01
   custom_metrics:
     target_subscription: 10
     target_subscription_errors: 15

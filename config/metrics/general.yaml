@@ -9,17 +9,21 @@ metrics:
       18: |
         SELECT (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns, 1::bigint AS up;
   general_database:
-    description: Lightweight database transaction and session totals sampled every 60 seconds.
+    description: Lightweight database identity, size, transaction, and session data sampled every 60 seconds.
     is_instance_level: true
     gauges: ['*']
     sqls:
       17: |
         SELECT (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns,
-               current_database() AS tag_database, numbackends::bigint, xact_commit::bigint,
+               current_database() AS tag_database, current_setting('server_version') AS tag_pg_version,
+               inet_server_addr()::text AS tag_server_address, inet_server_port()::text AS tag_server_port,
+               pg_database_size(current_database())::bigint AS database_size_bytes, numbackends::bigint, xact_commit::bigint,
                xact_rollback::bigint, blks_read::bigint, blks_hit::bigint
         FROM pg_catalog.pg_stat_database WHERE datname = current_database();
       18: |
         SELECT (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns,
-               current_database() AS tag_database, numbackends::bigint, xact_commit::bigint,
+               current_database() AS tag_database, current_setting('server_version') AS tag_pg_version,
+               inet_server_addr()::text AS tag_server_address, inet_server_port()::text AS tag_server_port,
+               pg_database_size(current_database())::bigint AS database_size_bytes, numbackends::bigint, xact_commit::bigint,
                xact_rollback::bigint, blks_read::bigint, blks_hit::bigint
         FROM pg_catalog.pg_stat_database WHERE datname = current_database();
