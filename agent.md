@@ -37,6 +37,30 @@ monitoring configuration changes.
   monitoring state unless the user explicitly requests that destructive
   operation.
 
+## Monitoring overhead
+
+- Continuous metrics must read only PostgreSQL catalogs, statistics views,
+  and replication metadata. Never poll application rows, run full-table
+  counts, hashes, checksums, or `COPY` as part of dashboard monitoring.
+- Keep worker status, table states, errors, LSN/lag, slots, and message age
+  near 10 seconds; keep connection health, publication inventory, and
+  replication origins at 1–5 minutes. Retained WAL is already returned by
+  the 10-second slot query and needs no separate poll.
+- Before adding a query or shortening an interval, consider its work per run
+  multiplied by all monitored databases. Keep one parallel pgwatch connection
+  per database and the monitoring role's 5-second statement timeout. Check
+  actual saved Web UI profiles: `config/sources.yaml` is only a reference.
+- Treat `pg_database_size()` and catalog walks such as
+  `pg_publication_tables` / `pg_subscription_rel` as potentially costly on
+  large databases. Measure them on representative instances; lengthen their
+  cadence or disable them if they cause material load. Do not claim zero
+  overhead without measurements.
+- `validate-data.sh` is a manual cut-over workflow, not a monitor: it reads
+  and sorts every published row and holds long-lived snapshots. Run it only
+  during the coordinated write pause after assessing table size and capacity.
+  Grafana queries run against the separate metrics database, not the
+  monitored publisher or subscriber.
+
 ## What this stack monitors
 
 Each migration pair has two pgwatch profiles with the same
