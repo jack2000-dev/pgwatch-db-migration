@@ -291,15 +291,21 @@ The exact sampling intervals are:
 | Metric | Interval |
 |---|---:|
 | Publisher logical slots, byte lag, retained WAL | 10 seconds |
-| Publisher publication status and table count | 30 seconds |
+| Publisher publication status and table count | 60 seconds |
 | Subscriber worker health and message age | 10 seconds |
-| Apply/sync errors and PG18 conflicts | 15 seconds |
-| Table synchronization state | 30 seconds |
-| Replication origins | 30 seconds |
-| Lightweight connectivity/general database totals | 60 seconds |
+| Apply/sync errors and PG18 conflicts | 10 seconds |
+| Table synchronization state | 10 seconds |
+| Replication origins | 60 seconds |
+| Connectivity/general database totals, including database size | 60 seconds |
 
 pgwatch is limited to one parallel connection per monitored database and
 helper creation is disabled. Retention defaults to 30 days.
+Retained WAL is included in the 10-second slot query, so it adds no separate
+poll. These intervals are reference settings; update existing profiles in the
+pgwatch Web UI, since changing `config/sources.yaml` does not change saved
+profiles. `general_database` calls `pg_database_size()`, which may cost more
+on large databases; measure its impact and lengthen or disable that metric
+if necessary (the database-size panels will then become stale).
 
 ## Access Grafana
 
@@ -325,6 +331,8 @@ protected by the VPN, keep
 ssh -L 3000:127.0.0.1:3000 user@monitor.example.com
 ```
 
+For panel meanings and issue resolution, see the [dashboard guide](DASHBOARD.md).
+
 Two dashboards are under **PostgreSQL Migrations**:
 
 - **PostgreSQL Migration Fleet Overview** lists every correlated migration as
@@ -340,6 +348,12 @@ Two dashboards are under **PostgreSQL Migrations**:
   the corresponding health and replication panels. Snapshot tables hide
   rows older than five minutes so stopped collection is shown as no data rather
   than as current state.
+
+The Data flow panel compares the selected slot's confirmed flush LSN over the
+last 60 seconds: `FLOWING` means it advanced, `IDLE` means it did not, and
+`DISCONNECTED` means the slot is inactive or not streaming. `UNKNOWN` means
+recent observations are missing or insufficient. Idle is normal without
+writes; LSN movement does not prove that application rows changed.
 
 The detail dashboard shows continuous `HEALTHY`, `WARNING`, `CRITICAL`, or
 `UNKNOWN` status from fresh slot, worker, lag, table-readiness, and five-minute
