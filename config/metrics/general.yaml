@@ -9,7 +9,7 @@ metrics:
       18: |
         SELECT (extract(epoch FROM clock_timestamp()) * 1000000000)::bigint AS epoch_ns, 1::bigint AS up;
   general_database:
-    description: Lightweight database identity, size, transaction, and session data sampled every 60 seconds.
+    description: Database identity, size, transaction, and session data; database size may be costly on large databases.
     is_instance_level: true
     gauges: ['*']
     sqls:

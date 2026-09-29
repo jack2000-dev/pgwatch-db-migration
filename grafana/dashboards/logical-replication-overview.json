@@ -13,7 +13,7 @@
       "id": 1,
       "type": "table",
       "title": "Migration cutover readiness",
-      "description": "READY requires five stable minutes, synchronized tables, zero lag and new errors, plus a successful exact source/target data comparison; otherwise status is graded or requests a data check.",
+      "description": "READY: replication stayed caught up for five minutes and the data check passed. WARNING: lag, a few new errors, or reset error stats need review. NOT READY: replication or table sync is unhealthy, over five new errors occurred, or the data check failed. DATA CHECK REQUIRED: no check is recorded. UNKNOWN: monitoring data is missing, old, or too new.",
       "gridPos": {
         "h": 20,
         "w": 24,

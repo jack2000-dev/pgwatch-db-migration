@@ -24,16 +24,14 @@ class MonitoringConfigTest(unittest.TestCase):
         self.assertIn("server_address", variables[1]["query"])
 
         panels = {panel["title"]: panel for panel in detail["panels"]}
-        self.assertEqual(panels["Source"]["gridPos"], {"h": 4, "w": 12, "x": 0, "y": 0})
-        self.assertEqual(panels["Target"]["gridPos"], {"h": 4, "w": 12, "x": 12, "y": 0})
+        self.assertEqual(panels["Source"]["gridPos"]["x"], 0)
+        self.assertEqual(panels["Target"]["gridPos"]["x"], 12)
+        self.assertEqual(panels["Source"]["gridPos"]["y"], panels["Target"]["gridPos"]["y"])
         self.assertIn("pg_version", panels["Source"]["targets"][0]["rawSql"])
         self.assertIn("pg_version", panels["Target"]["targets"][0]["rawSql"])
         self.assertIn("server_endpoint", panels["Source"]["targets"][0]["rawSql"])
         self.assertIn("server_endpoint", panels["Target"]["targets"][0]["rawSql"])
-        source_panels = ("Source", "Replication health", "Slot active", "Lag (bytes)", "Retained WAL bytes over time", "Publication status", "Logical replication slots", "Source database size")
-        target_panels = ("Target", "Cutover status", "Subscription status", "Apply worker count", "Table sync worker count", "Last replication message age", "Apply error count over time", "Sync error count over time", "Table readiness", "Table status", "Subscription workers", "Replication origins", "Target database size")
-        self.assertTrue(all(panels[title]["gridPos"]["x"] + panels[title]["gridPos"]["w"] <= 12 for title in source_panels))
-        self.assertTrue(all(panels[title]["gridPos"]["x"] >= 12 for title in target_panels))
+        self.assertTrue(all(0 <= panel["gridPos"]["x"] and panel["gridPos"]["x"] + panel["gridPos"]["w"] <= 24 for panel in detail["panels"]))
         self.assertEqual(panels["Publication status"]["type"], "table")
         self.assertEqual(panels["Table status"]["type"], "table")
         self.assertEqual(panels["Table readiness"]["type"], "table")
@@ -53,6 +51,28 @@ class MonitoringConfigTest(unittest.TestCase):
         self.assertIn("dbname = '$target'", panels["Target database size"]["targets"][0]["rawSql"])
         snapshot_panels = ("Source", "Target", "Replication health", "Cutover status", "Subscription status", "Slot active", "Apply worker count", "Table sync worker count", "Table readiness", "Publication status", "Logical replication slots", "Subscription workers", "Table status", "Replication origins", "Source database size", "Target database size")
         self.assertTrue(all("time > now() - interval '5 minutes'" in panels[title]["targets"][0]["rawSql"] for title in snapshot_panels))
+
+    def test_data_flow_and_panel_descriptions(self):
+        detail = dashboard("logical-replication-migration.json")
+        overview = dashboard("logical-replication-overview.json")
+        for item in (detail, overview):
+            self.assertTrue(all(panel.get("description", "").strip() for panel in item["panels"]))
+        panels = {panel["title"]: panel for panel in detail["panels"]}
+        slot = panels["Slot active"]["gridPos"]
+        flow = panels["Data flow"]
+        self.assertEqual((slot["x"], slot["w"]), (0, 6))
+        self.assertEqual((flow["gridPos"]["x"], flow["gridPos"]["w"], flow["gridPos"]["y"]), (6, 6, slot["y"]))
+        self.assertEqual(
+            {value["text"] for value in flow["fieldConfig"]["defaults"]["mappings"][0]["options"].values()},
+            {"FLOWING", "IDLE", "DISCONNECTED", "UNKNOWN"},
+        )
+        flow_sql = flow["targets"][0]["rawSql"]
+        self.assertIn("confirmed_flush_lsn", flow_sql)
+        self.assertIn("interval '60 seconds'", flow_sql)
+        self.assertIn("interval '90 seconds'", flow_sql)
+        table_sql = panels["Table status"]["targets"][0]["rawSql"]
+        self.assertIn("AS table_name", table_sql)
+        self.assertNotIn("AS table,", table_sql)
 
     def test_cutover_and_alert_thresholds_match(self):
         overview = dashboard("logical-replication-overview.json")

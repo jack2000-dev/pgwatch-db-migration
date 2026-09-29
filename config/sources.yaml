@@ -13,7 +13,7 @@
     migration_pair: orders-migration-01
   custom_metrics:
     source_replication_slot: 10
-    source_publication: 30
+    source_publication: 60
     instance_up: 60
     general_database: 60
 
@@ -30,8 +30,8 @@
     migration_pair: orders-migration-01
   custom_metrics:
     target_subscription: 10
-    target_subscription_errors: 15
-    target_table_sync: 30
-    target_replication_origins: 30
+    target_subscription_errors: 10
+    target_table_sync: 10
+    target_replication_origins: 60
     instance_up: 60
     general_database: 60
