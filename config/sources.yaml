@@ -11,11 +11,7 @@
     environment: production
     migration_role: publisher
     migration_pair: orders-migration-01
-  custom_metrics:
-    source_replication_slot: 10
-    source_publication: 60
-    instance_up: 60
-    general_database: 60
+  preset_metrics: logical_replication_publisher
 
 - name: openstack-subscriber-orders-dst
   conn_str: postgresql://pgwatch_monitor@openstack-subscriber.example.com:5432/orders?sslmode=verify-full&sslrootcert=/run/pgwatch-certs/mycloud-ca.pem&passfile=/run/pgwatch-secrets/pgpass
@@ -28,10 +24,4 @@
     environment: production
     migration_role: subscriber
     migration_pair: orders-migration-01
-  custom_metrics:
-    target_subscription: 10
-    target_subscription_errors: 10
-    target_table_sync: 10
-    target_replication_origins: 60
-    instance_up: 60
-    general_database: 60
+  preset_metrics: logical_replication_subscriber

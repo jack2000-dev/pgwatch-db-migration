@@ -61,6 +61,16 @@ if [[ "$config_table" != pgwatch.source ]]; then
 fi
 
 docker compose --env-file "$env_file" exec -T metrics-db \
+  psql -X -v ON_ERROR_STOP=1 -U "$METRICS_DB_USER" -d "$CONFIG_DB_NAME" <<'SQL'
+INSERT INTO pgwatch.preset (name, description, metrics) VALUES
+  ('logical_replication_publisher', 'Low-impact logical replication publisher monitoring.',
+   '{"source_replication_slot":10,"source_publication":60,"instance_up":60,"general_database":60}'::jsonb),
+  ('logical_replication_subscriber', 'Low-impact logical replication subscriber monitoring.',
+   '{"target_subscription":10,"target_subscription_errors":10,"target_table_sync":10,"target_replication_origins":60,"instance_up":60,"general_database":60}'::jsonb)
+ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description, metrics = EXCLUDED.metrics;
+SQL
+
+docker compose --env-file "$env_file" exec -T metrics-db \
   psql -X -qAt -v ON_ERROR_STOP=1 -U "$METRICS_DB_USER" -d "$METRICS_DB_NAME" \
   -c "CREATE TABLE IF NOT EXISTS cutover_validation (migration_pair text NOT NULL, validated_at timestamptz NOT NULL DEFAULT now(), status text NOT NULL CHECK (status IN ('PASS', 'FAIL', 'ERROR')), source_database text NOT NULL, target_database text NOT NULL, publication text NOT NULL, subscription text NOT NULL, tables bigint NOT NULL DEFAULT 0, source_rows bigint NOT NULL DEFAULT 0, target_rows bigint NOT NULL DEFAULT 0, differences bigint NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS cutover_validation_pair_time_idx ON cutover_validation (migration_pair, validated_at DESC);"
 

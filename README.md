@@ -228,7 +228,7 @@ For each profile:
 1. Add a source with a unique name.
 2. Set kind to `postgres`, group to `logical-replication`, and enable it.
 3. Enter the passwordless connection string.
-4. Enter the role-specific custom tags and custom metrics shown below.
+4. Enter the role-specific custom tags and select the matching preset below.
 5. Test the connection from the Web UI, then save.
 
 Use this publisher connection string as a template:
@@ -263,10 +263,14 @@ Set `instance` to the human-readable cloud instance or endpoint name. PostgreSQL
 cannot report the DNS name used by its client, so the dashboard also shows the
 server IP and port detected independently by each database connection.
 
-Configure publisher custom metrics as
-`{"source_replication_slot":10,"source_publication":30,"instance_up":60,"general_database":60}`.
-Configure subscriber custom metrics as
-`{"target_subscription":10,"target_subscription_errors":15,"target_table_sync":30,"target_replication_origins":30,"instance_up":60,"general_database":60}`.
+Select the `logical_replication_publisher` preset for a publisher or
+`logical_replication_subscriber` for a subscriber. Leave custom metrics empty;
+they override the preset. Presets contain only metric names and intervals, so
+you must still set `migration_role`, `migration_pair`, and `instance` in each
+source's custom tags. The built-in `basic` preset is not part of this stack's
+custom metric set and will not populate the migration dashboards.
+After adding or updating these presets, run `sudo ./scripts/start.sh` once to
+register them in pgwatch's configuration database before saving a source.
 The complete pair is also shown in `config/sources.yaml` as a non-active
 reference. Saved profiles persist in the `metrics-data` volume. Wait five
 minutes after saving the first pair before validating dashboards and fresh

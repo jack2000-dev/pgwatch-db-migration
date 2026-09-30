@@ -111,6 +111,14 @@ class MonitoringConfigTest(unittest.TestCase):
         self.assertEqual(general.count("tag_server_address"), 2)
         self.assertEqual(general.count("database_size_bytes"), 2)
 
+    def test_migration_presets_are_registered_before_sources_are_saved(self):
+        presets = (ROOT / "config" / "metrics" / "presets.yaml").read_text()
+        launcher = (ROOT / "scripts" / "start.sh").read_text()
+        for name in ("logical_replication_publisher", "logical_replication_subscriber"):
+            self.assertIn(name, presets)
+            self.assertIn(name, launcher)
+        self.assertIn("INSERT INTO pgwatch.preset", launcher)
+
 
 if __name__ == "__main__":
     unittest.main()

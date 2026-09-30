@@ -1,0 +1,17 @@
+presets:
+  logical_replication_publisher:
+    description: Low-impact logical replication publisher monitoring.
+    metrics:
+      source_replication_slot: 10
+      source_publication: 60
+      instance_up: 60
+      general_database: 60
+  logical_replication_subscriber:
+    description: Low-impact logical replication subscriber monitoring.
+    metrics:
+      target_subscription: 10
+      target_subscription_errors: 10
+      target_table_sync: 10
+      target_replication_origins: 60
+      instance_up: 60
+      general_database: 60
