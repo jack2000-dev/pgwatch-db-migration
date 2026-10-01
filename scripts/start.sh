@@ -74,6 +74,10 @@ docker compose --env-file "$env_file" exec -T metrics-db \
   psql -X -qAt -v ON_ERROR_STOP=1 -U "$METRICS_DB_USER" -d "$METRICS_DB_NAME" \
   -c "CREATE TABLE IF NOT EXISTS cutover_validation (migration_pair text NOT NULL, validated_at timestamptz NOT NULL DEFAULT now(), status text NOT NULL CHECK (status IN ('PASS', 'FAIL', 'ERROR')), source_database text NOT NULL, target_database text NOT NULL, publication text NOT NULL, subscription text NOT NULL, tables bigint NOT NULL DEFAULT 0, source_rows bigint NOT NULL DEFAULT 0, target_rows bigint NOT NULL DEFAULT 0, differences bigint NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS cutover_validation_pair_time_idx ON cutover_validation (migration_pair, validated_at DESC);"
 
+docker compose --env-file "$env_file" exec -T metrics-db \
+  psql -X -qAt -v ON_ERROR_STOP=1 -U "$METRICS_DB_USER" -d "$METRICS_DB_NAME" \
+  -c "CREATE TABLE IF NOT EXISTS monitoring_profile_inventory (profile_name text PRIMARY KEY, enabled boolean NOT NULL, provider text, instance text, role text, migration_pair text, last_seen_in_registry timestamptz NOT NULL, retired_at timestamptz);"
+
 docker compose --env-file "$env_file" up -d --wait --wait-timeout 120
 
 echo "Stack started."

@@ -1,7 +1,7 @@
 metrics:
   source_replication_slot:
     description: Logical replication slot health and publisher connection state.
-    is_instance_level: true
+    is_instance_level: false
     gauges: ['*']
     sqls:
       17: |

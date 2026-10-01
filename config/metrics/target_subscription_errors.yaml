@@ -1,7 +1,7 @@
 metrics:
   target_subscription_errors:
     description: Subscription apply/sync errors and PostgreSQL 18 conflict counters.
-    is_instance_level: true
+    is_instance_level: false
     gauges: ['*']
     sqls:
       17: |
@@ -31,4 +31,3 @@ metrics:
         FROM pg_catalog.pg_stat_subscription_stats AS stats
         JOIN pg_catalog.pg_subscription AS sub ON sub.oid = stats.subid
         WHERE sub.subdbid = (SELECT oid FROM pg_catalog.pg_database WHERE datname = current_database());
-

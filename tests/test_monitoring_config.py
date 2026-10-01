@@ -17,13 +17,17 @@ class MonitoringConfigTest(unittest.TestCase):
         visible = [item["label"] for item in variables if not item.get("hide")]
         self.assertEqual(visible, ["Source", "Target", "Slot"])
         self.assertEqual(next(item for item in variables if item["name"] == "subscription")["hide"], 2)
-        self.assertEqual({item["name"] for item in variables}, {"source", "target", "slot", "subscription"})
-        self.assertIn("tag_data->>'database'", variables[0]["query"])
-        self.assertIn("tag_data->>'database'", variables[1]["query"])
-        self.assertIn("server_address", variables[0]["query"])
-        self.assertIn("server_address", variables[1]["query"])
+        self.assertEqual({item["name"] for item in variables}, {"source", "target", "slot", "subscription", "source_provider", "source_instance", "target_provider", "target_instance"})
+        by_name = {item["name"]: item for item in variables}
+        self.assertIn("tag_data->>'database'", by_name["source"]["query"])
+        self.assertIn("tag_data->>'database'", by_name["target"]["query"])
+        self.assertIn("monitoring_profile_inventory", by_name["source"]["query"])
+        self.assertIn("monitoring_profile_inventory", by_name["target"]["query"])
+        self.assertIn("dbname = ${target:sqlstring}", by_name["slot"]["query"])
 
         panels = {panel["title"]: panel for panel in detail["panels"]}
+        self.assertEqual(panels["Database migrations in this instance pair"]["gridPos"]["y"], 0)
+        self.assertIn("source_database", panels["Database migrations in this instance pair"]["targets"][0]["rawSql"])
         self.assertEqual(panels["Source"]["gridPos"]["x"], 0)
         self.assertEqual(panels["Target"]["gridPos"]["x"], 12)
         self.assertEqual(panels["Source"]["gridPos"]["y"], panels["Target"]["gridPos"]["y"])
@@ -79,14 +83,15 @@ class MonitoringConfigTest(unittest.TestCase):
         overview_sql = overview["panels"][0]["targets"][0]["rawSql"]
         for status in ("READY", "WARNING", "NOT READY", "UNKNOWN"):
             self.assertIn(status, overview_sql)
-        self.assertIn("e.new_errors > 5", overview_sql)
+        self.assertIn("new_errors > 5", overview_sql)
         self.assertIn("cutover_validation", overview_sql)
-        self.assertIn("v.status IS NULL", overview_sql)
+        self.assertIn("data_validation IS NULL", overview_sql)
         self.assertIn("DATA CHECK REQUIRED", overview_sql)
         link = overview["panels"][0]["fieldConfig"]["overrides"][0]["properties"][0]["value"][0]["url"]
-        self.assertIn('var-source=${__data.fields["publisher"]}', link)
-        self.assertIn('var-target=${__data.fields["subscriber"]}', link)
-        self.assertNotIn("var-publisher", link)
+        self.assertIn('var-source_instance=${__data.fields["source_instance"]:percentencode}', link)
+        self.assertIn('var-target_instance=${__data.fields["target_instance"]:percentencode}', link)
+        self.assertIn("bool_or(cutover_status = 'UNKNOWN')", overview_sql)
+        self.assertIn("count(*) FILTER (WHERE cutover_status = 'READY')", overview_sql)
 
         alerts = (ROOT / "grafana" / "provisioning" / "alerting" / "logical-replication.yaml").read_text()
         self.assertIn("lr-logical-replication-errors", alerts)
@@ -118,6 +123,36 @@ class MonitoringConfigTest(unittest.TestCase):
             self.assertIn(name, presets)
             self.assertIn(name, launcher)
         self.assertIn("INSERT INTO pgwatch.preset", launcher)
+
+    def test_relationship_query_uses_registry_and_shared_sql(self):
+        sql = (ROOT / "grafana" / "sql" / "relationship-status.sql").read_text().strip()
+        overview = dashboard("logical-replication-overview.json")
+        detail = dashboard("logical-replication-migration.json")
+        self.assertIn(sql, overview["panels"][0]["targets"][0]["rawSql"])
+        self.assertIn(sql, detail["panels"][0]["targets"][0]["rawSql"])
+        self.assertIn("FULL JOIN", sql)
+        self.assertIn("retired_at IS NULL", sql)
+        self.assertIn("last_seen_in_registry", sql)
+        self.assertIn("source_provider IS NULL", sql)
+        self.assertIn("source_instance IS NULL", sql)
+        self.assertIn("time > now() - interval '5 minutes'", sql)
+        self.assertNotIn("pg_subscription.subconninfo", sql)
+        sync = (ROOT / "scripts" / "sync-inventory.sh").read_text()
+        self.assertIn("FROM pgwatch.source", sync)
+        self.assertIn("WHERE dbtype = 'postgres'", sync)
+        self.assertIn("preset_config IN", sync)
+        self.assertNotIn("conn_str", sync)
+
+    def test_only_connection_metric_is_instance_level(self):
+        for path in (ROOT / "config" / "metrics").glob("*.yaml"):
+            if path.name == "presets.yaml":
+                continue
+            content = path.read_text()
+            if path.name == "general.yaml":
+                self.assertEqual(content.count("is_instance_level: true"), 1)
+                self.assertEqual(content.count("is_instance_level: false"), 1)
+            else:
+                self.assertNotIn("is_instance_level: true", content)
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ source_sslmode="${SOURCE_DB_SSLMODE:-verify-full}"
 target_sslmode="${TARGET_DB_SSLMODE:-verify-full}"
 
 running="$(docker compose --env-file "$env_file" ps --services --filter status=running 2>/dev/null || true)"
-for service in metrics-db pgwatch grafana; do
+for service in metrics-db pgwatch inventory-sync grafana; do
   if grep -qx "$service" <<<"$running"; then pass "Docker service $service is running"; else fail "Docker service $service is not running"; fi
 done
 
@@ -42,6 +42,19 @@ if [[ "$config_table" == t ]]; then
   pass "PostgreSQL-backed pgwatch source registry exists"
 else
   fail "PostgreSQL-backed pgwatch source registry is missing"
+fi
+
+inventory_table="$(docker compose --env-file "$env_file" exec -T metrics-db psql -X -qAt -U "$METRICS_DB_USER" -d "$METRICS_DB_NAME" -v ON_ERROR_STOP=1 -c "SELECT to_regclass('monitoring_profile_inventory') IS NOT NULL;" 2>/dev/null || true)"
+if [[ "$inventory_table" == t ]]; then
+  pass "monitoring profile inventory exists"
+  inventory_age_ok="$(docker compose --env-file "$env_file" exec -T metrics-db psql -X -qAt -U "$METRICS_DB_USER" -d "$METRICS_DB_NAME" -v ON_ERROR_STOP=1 -c "SELECT count(*) = 0 OR bool_and(last_seen_in_registry > now() - interval '120 seconds') FROM monitoring_profile_inventory WHERE retired_at IS NULL;" 2>/dev/null || true)"
+  if [[ "$inventory_age_ok" == t ]]; then
+    pass "monitoring profile inventory is fresh"
+  else
+    fail "monitoring profile inventory is stale"
+  fi
+else
+  fail "monitoring profile inventory is missing"
 fi
 
 pgwatch_host="${PGWATCH_WEB_BIND_ADDRESS:-127.0.0.1}"

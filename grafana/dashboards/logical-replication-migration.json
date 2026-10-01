@@ -26,6 +26,120 @@
         "type": "postgres",
         "uid": "pgwatch-metrics"
       },
+      "description": "Publisher database, configured instance, detected server endpoint, and PostgreSQL version.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 18,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.11",
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT tag_data->>'database' AS database, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS configured_instance, CASE WHEN COALESCE(tag_data->>'server_address', '') = '' THEN 'unknown' ELSE tag_data->>'server_address' || COALESCE(':' || NULLIF(tag_data->>'server_port', ''), '') END AS server_endpoint, COALESCE(NULLIF(tag_data->>'pg_version', ''), 'unknown') AS postgres_version FROM general_database WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Source",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "description": "Subscriber database, configured instance, detected server endpoint, and PostgreSQL version.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 19,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.11",
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT tag_data->>'database' AS database, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS configured_instance, CASE WHEN COALESCE(tag_data->>'server_address', '') = '' THEN 'unknown' ELSE tag_data->>'server_address' || COALESCE(':' || NULLIF(tag_data->>'server_port', ''), '') END AS server_endpoint, COALESCE(NULLIF(tag_data->>'pg_version', ''), 'unknown') AS postgres_version FROM general_database WHERE dbname = '$target' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Target",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
       "description": "HEALTHY requires fresh active/streaming slot data, a running apply worker, all tables ready, zero lag, and no new apply/sync errors in five minutes.",
       "fieldConfig": {
         "defaults": {
@@ -121,7 +235,7 @@
         "h": 4,
         "w": 12,
         "x": 0,
-        "y": 0
+        "y": 4
       },
       "id": 22,
       "options": {
@@ -207,7 +321,7 @@
         "h": 4,
         "w": 12,
         "x": 12,
-        "y": 0
+        "y": 4
       },
       "id": 24,
       "options": {
@@ -281,7 +395,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 4
+        "y": 8
       },
       "id": 2,
       "options": {
@@ -359,7 +473,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 4
+        "y": 8
       },
       "id": 25,
       "options": {
@@ -437,7 +551,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 4
+        "y": 8
       },
       "id": 1,
       "options": {
@@ -498,7 +612,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 4
+        "y": 8
       },
       "id": 3,
       "options": {
@@ -555,7 +669,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 4
+        "y": 8
       },
       "id": 4,
       "options": {
@@ -585,120 +699,6 @@
       ],
       "title": "Table sync worker count",
       "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "postgres",
-        "uid": "pgwatch-metrics"
-      },
-      "description": "Publisher database, configured instance, detected server endpoint, and PostgreSQL version.",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 18,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "pluginVersion": "12.3.11",
-      "targets": [
-        {
-          "format": "table",
-          "rawSql": "SELECT tag_data->>'database' AS database, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS configured_instance, CASE WHEN COALESCE(tag_data->>'server_address', '') = '' THEN 'unknown' ELSE tag_data->>'server_address' || COALESCE(':' || NULLIF(tag_data->>'server_port', ''), '') END AS server_endpoint, COALESCE(NULLIF(tag_data->>'pg_version', ''), 'unknown') AS postgres_version FROM general_database WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
-          "refId": "A"
-        }
-      ],
-      "title": "Source",
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "postgres",
-        "uid": "pgwatch-metrics"
-      },
-      "description": "Subscriber database, configured instance, detected server endpoint, and PostgreSQL version.",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "id": 19,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "pluginVersion": "12.3.11",
-      "targets": [
-        {
-          "format": "table",
-          "rawSql": "SELECT tag_data->>'database' AS database, COALESCE(NULLIF(tag_data->>'instance', ''), dbname) AS configured_instance, CASE WHEN COALESCE(tag_data->>'server_address', '') = '' THEN 'unknown' ELSE tag_data->>'server_address' || COALESCE(':' || NULLIF(tag_data->>'server_port', ''), '') END AS server_endpoint, COALESCE(NULLIF(tag_data->>'pg_version', ''), 'unknown') AS postgres_version FROM general_database WHERE dbname = '$target' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1",
-          "refId": "A"
-        }
-      ],
-      "title": "Target",
-      "type": "table"
     },
     {
       "datasource": {
@@ -1804,6 +1804,213 @@
       ],
       "title": "Target database size",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "postgres",
+        "uid": "pgwatch-metrics"
+      },
+      "description": "Each row is a database/slot relationship. Registered profiles without fresh metrics remain UNKNOWN. Select a database to load its detailed replication panels below.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "source_database"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Inspect database migration",
+                    "url": "/d/logical-replication-migration/postgresql-logical-replication-migration?var-source_provider=${__data.fields[\"source_provider\"]:percentencode}&var-source_instance=${__data.fields[\"source_instance\"]:percentencode}&var-target_provider=${__data.fields[\"target_provider\"]:percentencode}&var-target_instance=${__data.fields[\"target_instance\"]:percentencode}&var-source=${__data.fields[\"publisher\"]:percentencode}&var-target=${__data.fields[\"subscriber\"]:percentencode}&var-slot=${__data.fields[\"slot\"]:percentencode}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lag_bytes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "health_status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "CRITICAL": {
+                        "color": "red",
+                        "text": "CRITICAL"
+                      },
+                      "HEALTHY": {
+                        "color": "green",
+                        "text": "HEALTHY"
+                      },
+                      "UNKNOWN": {
+                        "color": "gray",
+                        "text": "UNKNOWN"
+                      },
+                      "WARNING": {
+                        "color": "orange",
+                        "text": "WARNING"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cutover_status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "DATA CHECK REQUIRED": {
+                        "color": "blue",
+                        "text": "DATA CHECK REQUIRED"
+                      },
+                      "NOT READY": {
+                        "color": "red",
+                        "text": "NOT READY"
+                      },
+                      "READY": {
+                        "color": "green",
+                        "text": "READY"
+                      },
+                      "UNKNOWN": {
+                        "color": "gray",
+                        "text": "UNKNOWN"
+                      },
+                      "WARNING": {
+                        "color": "orange",
+                        "text": "WARNING"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "target_provider"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 117
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "source_instance"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 241
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "source_provider"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 123
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "id": 26,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.11",
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT source_provider, source_instance, target_provider, target_instance,\n  source_database, target_database, slot, subscription,\n  health_status, cutover_status, lag_bytes, errors, tables_ready,\n  data_validation, validated_at, publisher, subscriber\nFROM (WITH inventory AS (\n  SELECT profile_name, enabled, provider, instance, role, migration_pair,\n         last_seen_in_registry\n  FROM monitoring_profile_inventory\n  WHERE retired_at IS NULL AND role IN ('publisher', 'subscriber')\n), expected AS (\n  SELECT p.profile_name AS publisher, t.profile_name AS subscriber,\n         COALESCE(p.migration_pair, t.migration_pair) AS migration_pair,\n         p.provider AS source_provider, p.instance AS source_instance,\n         t.provider AS target_provider, t.instance AS target_instance,\n         p.enabled AS source_enabled, t.enabled AS target_enabled,\n         p.last_seen_in_registry AS source_registered,\n         t.last_seen_in_registry AS target_registered\n  FROM (SELECT * FROM inventory WHERE role = 'publisher') p\n  FULL JOIN (SELECT * FROM inventory WHERE role = 'subscriber') t\n    ON p.migration_pair = t.migration_pair AND p.migration_pair <> ''\n), slot_window AS (\n  SELECT time, dbname AS publisher, tag_data->>'migration_pair' AS migration_pair,\n         tag_data->>'slot_name' AS slot, tag_data->>'database' AS source_database,\n         COALESCE((data->>'lag_bytes')::bigint, 0) AS lag_bytes,\n         COALESCE((data->>'active')::int, 0) AS active,\n         COALESCE((data->>'publisher_streaming_count')::int, 0) AS streaming\n  FROM source_replication_slot WHERE time > now() - interval '5 minutes'\n), slots AS (\n  SELECT publisher, migration_pair, slot,\n         (array_agg(source_database ORDER BY time DESC))[1] AS source_database,\n         (array_agg(lag_bytes ORDER BY time DESC))[1] AS lag_bytes,\n         min(time) AS first_seen, max(time) AS last_seen,\n         bool_and(active = 1 AND streaming > 0) AS healthy,\n         bool_and(lag_bytes = 0) AS lag_zero\n  FROM slot_window GROUP BY publisher, migration_pair, slot\n), subscription_window AS (\n  SELECT time, dbname AS subscriber, tag_data->>'migration_pair' AS migration_pair,\n         tag_data->>'subscription' AS subscription, tag_data->>'slot_name' AS slot,\n         COALESCE((data->>'enabled')::int, 0) AS enabled,\n         COALESCE((data->>'subscription_status')::int, -1) AS subscription_status,\n         COALESCE((data->>'apply_worker_count')::int, 0) AS apply_workers\n  FROM target_subscription WHERE time > now() - interval '5 minutes'\n), subscriptions AS (\n  SELECT subscriber, migration_pair, subscription, slot,\n         min(time) AS first_seen, max(time) AS last_seen,\n         bool_and(enabled = 1 AND subscription_status = 1 AND apply_workers > 0) AS healthy\n  FROM subscription_window GROUP BY subscriber, migration_pair, subscription, slot\n), error_points AS (\n  SELECT time, dbname AS subscriber, tag_data->>'subscription' AS subscription,\n         COALESCE((data->>'apply_error_count')::bigint, 0) AS apply_errors,\n         COALESCE((data->>'sync_error_count')::bigint, 0) AS sync_errors,\n         COALESCE((data->>'stats_reset_epoch_s')::double precision, 0) AS reset_epoch\n  FROM target_subscription_errors WHERE time > now() - interval '5 minutes'\n), error_changes AS (\n  SELECT *, greatest(apply_errors - lag(apply_errors) OVER error_order, 0)\n              + greatest(sync_errors - lag(sync_errors) OVER error_order, 0) AS new_errors\n  FROM error_points WINDOW error_order AS (PARTITION BY subscriber, subscription ORDER BY time)\n), errors AS (\n  SELECT subscriber, subscription, min(time) AS first_seen, max(time) AS last_seen,\n         COALESCE(sum(new_errors), 0)::bigint AS new_errors,\n         min(reset_epoch) = max(reset_epoch) AS reset_stable\n  FROM error_changes GROUP BY subscriber, subscription\n), table_window AS (\n  SELECT time, dbname AS subscriber, tag_data->>'subscription' AS subscription,\n         COALESCE((data->>'total_tables')::bigint, 0) AS total_tables,\n         COALESCE((data->>'non_ready_tables')::bigint, 0) AS non_ready_tables\n  FROM target_table_sync WHERE time > now() - interval '5 minutes'\n), tables AS (\n  SELECT subscriber, subscription,\n         (array_agg(total_tables ORDER BY time DESC))[1] AS total_tables,\n         (array_agg(non_ready_tables ORDER BY time DESC))[1] AS non_ready_tables,\n         min(time) AS first_seen, max(time) AS last_seen,\n         bool_and(total_tables > 0 AND non_ready_tables = 0) AS healthy\n  FROM table_window GROUP BY subscriber, subscription\n), validations AS (\n  SELECT DISTINCT ON (migration_pair) migration_pair, status, validated_at\n  FROM cutover_validation ORDER BY migration_pair, validated_at DESC\n), databases AS (\n  SELECT DISTINCT ON (dbname) dbname AS profile,\n         COALESCE(NULLIF(tag_data->>'database', ''), dbname) AS database\n  FROM general_database WHERE time > now() - interval '5 minutes'\n  ORDER BY dbname, time DESC\n), relationships AS (\n  SELECT x.*, sub.subscription, sub.slot, sub.first_seen AS target_first_seen,\n         sub.last_seen AS target_last_seen, sub.healthy AS target_healthy,\n         s.source_database, s.lag_bytes, s.first_seen AS source_first_seen,\n         s.last_seen AS source_last_seen, s.healthy AS source_healthy, s.lag_zero\n  FROM expected x\n  LEFT JOIN subscriptions sub ON sub.subscriber = x.subscriber AND sub.migration_pair = x.migration_pair\n  LEFT JOIN slots s ON s.publisher = x.publisher AND s.migration_pair = x.migration_pair AND s.slot = sub.slot\n), status_inputs AS (\n  SELECT r.*, COALESCE(r.source_database, sd.database, r.publisher, '—') AS source_database_name,\n         COALESCE(td.database, r.subscriber, '—') AS target_database_name,\n         e.new_errors, e.reset_stable, e.first_seen AS error_first_seen,\n         e.last_seen AS error_last_seen, t.total_tables, t.non_ready_tables,\n         t.healthy AS tables_healthy, t.first_seen AS tables_first_seen,\n         t.last_seen AS tables_last_seen, v.status AS data_validation, v.validated_at,\n         (r.publisher IS NULL OR r.subscriber IS NULL OR r.subscription IS NULL\n          OR (SELECT count(*) FROM inventory i WHERE i.role = 'publisher'\n              AND i.migration_pair = r.migration_pair) <> 1\n          OR (SELECT count(*) FROM subscriptions candidate\n              WHERE candidate.migration_pair = r.migration_pair\n                AND candidate.slot = r.slot) > 1\n          OR r.source_provider IS NULL OR r.source_instance IS NULL\n          OR r.target_provider IS NULL OR r.target_instance IS NULL\n          OR r.source_registered < now() - interval '120 seconds'\n          OR r.target_registered < now() - interval '120 seconds'\n          OR r.source_last_seen < now() - interval '90 seconds'\n          OR r.target_last_seen < now() - interval '90 seconds'\n          OR e.last_seen < now() - interval '90 seconds'\n          OR t.last_seen < now() - interval '90 seconds'\n          OR r.source_last_seen IS NULL OR r.target_last_seen IS NULL\n          OR e.last_seen IS NULL OR t.last_seen IS NULL) AS missing_or_stale,\n         (r.source_first_seen > now() - interval '4 minutes'\n          OR r.target_first_seen > now() - interval '4 minutes'\n          OR e.first_seen > now() - interval '4 minutes'\n          OR t.first_seen > now() - interval '4 minutes') AS window_too_new\n  FROM relationships r\n  LEFT JOIN errors e ON e.subscriber = r.subscriber AND e.subscription = r.subscription\n  LEFT JOIN tables t ON t.subscriber = r.subscriber AND t.subscription = r.subscription\n  LEFT JOIN validations v ON v.migration_pair = r.migration_pair\n  LEFT JOIN databases sd ON sd.profile = r.publisher\n  LEFT JOIN databases td ON td.profile = r.subscriber\n), status AS (\n  SELECT *,\n    CASE WHEN missing_or_stale OR NOT COALESCE(source_enabled, false)\n                   OR NOT COALESCE(target_enabled, false) THEN 'UNKNOWN'\n         WHEN NOT source_healthy OR NOT target_healthy OR NOT tables_healthy\n                   OR new_errors > 5 THEN 'CRITICAL'\n         WHEN NOT lag_zero OR new_errors > 0 OR NOT reset_stable THEN 'WARNING'\n         ELSE 'HEALTHY' END AS health_status,\n    CASE WHEN missing_or_stale OR window_too_new\n                   OR NOT COALESCE(source_enabled, false)\n                   OR NOT COALESCE(target_enabled, false) THEN 'UNKNOWN'\n         WHEN NOT source_healthy OR NOT target_healthy OR NOT tables_healthy\n                   OR new_errors > 5 THEN 'NOT READY'\n         WHEN NOT lag_zero OR new_errors > 0 OR NOT reset_stable THEN 'WARNING'\n         WHEN data_validation IS NULL THEN 'DATA CHECK REQUIRED'\n         WHEN data_validation <> 'PASS' THEN 'NOT READY'\n         ELSE 'READY' END AS cutover_status\n  FROM status_inputs\n)\nSELECT COALESCE(source_provider, '—') AS source_provider,\n       COALESCE(source_instance, publisher, '—') AS source_instance,\n       COALESCE(target_provider, '—') AS target_provider,\n       COALESCE(target_instance, subscriber, '—') AS target_instance,\n       source_database_name AS source_database, target_database_name AS target_database,\n       publisher, subscriber, migration_pair, slot, subscription,\n       lag_bytes, new_errors AS errors,\n       CASE WHEN tables_last_seen IS NULL OR tables_last_seen < now() - interval '90 seconds'\n                 THEN 'UNKNOWN'\n            WHEN total_tables > 0 AND non_ready_tables = 0 THEN 'YES'\n            ELSE 'NO' END AS tables_ready,\n       health_status, cutover_status, data_validation, validated_at\nFROM status\nUNION ALL\nSELECT COALESCE(provider, '—'), COALESCE(instance, profile_name), '—', '—',\n       profile_name, '—', profile_name, NULL, migration_pair, NULL, NULL,\n       NULL, NULL, 'UNKNOWN', 'UNKNOWN', 'UNKNOWN', NULL, NULL\nFROM monitoring_profile_inventory\nWHERE retired_at IS NULL AND (role IS NULL OR role NOT IN ('publisher', 'subscriber'))) AS relationships\nWHERE (${source_provider:sqlstring} = '' OR source_provider = ${source_provider:sqlstring})\n  AND (${source_instance:sqlstring} = '' OR source_instance = ${source_instance:sqlstring})\n  AND (${target_provider:sqlstring} = '' OR target_provider = ${target_provider:sqlstring})\n  AND (${target_instance:sqlstring} = '' OR target_instance = ${target_instance:sqlstring})\nORDER BY CASE cutover_status WHEN 'NOT READY' THEN 0 WHEN 'UNKNOWN' THEN 1\n  WHEN 'WARNING' THEN 2 WHEN 'DATA CHECK REQUIRED' THEN 3 ELSE 4 END,\n  source_database, target_database, slot",
+          "refId": "A"
+        }
+      ],
+      "title": "Database migrations in this instance pair",
+      "type": "table"
     }
   ],
   "preload": false,
@@ -1818,6 +2025,54 @@
   "templating": {
     "list": [
       {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 2,
+        "label": "source_provider",
+        "name": "source_provider",
+        "options": [],
+        "query": "",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 2,
+        "label": "source_instance",
+        "name": "source_instance",
+        "options": [],
+        "query": "",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 2,
+        "label": "target_provider",
+        "name": "target_provider",
+        "options": [],
+        "query": "",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 2,
+        "label": "target_instance",
+        "name": "target_instance",
+        "options": [],
+        "query": "",
+        "type": "textbox"
+      },
+      {
         "datasource": {
           "type": "postgres",
           "uid": "pgwatch-metrics"
@@ -1826,7 +2081,7 @@
         "label": "Source",
         "name": "source",
         "options": [],
-        "query": "SELECT database || ' — ' || endpoint AS __text, profile AS __value FROM (SELECT DISTINCT ON (dbname) dbname AS profile, COALESCE(NULLIF(tag_data->>'database', ''), dbname) AS database, COALESCE(NULLIF(tag_data->>'server_address', ''), NULLIF(tag_data->>'instance', ''), dbname) AS endpoint FROM general_database WHERE tag_data->>'migration_role' = 'publisher' AND time > now() - interval '5 minutes' ORDER BY dbname, time DESC) AS latest ORDER BY database, endpoint",
+        "query": "SELECT COALESCE(d.database, i.profile_name) || ' — ' || i.profile_name AS __text, i.profile_name AS __value FROM monitoring_profile_inventory i LEFT JOIN LATERAL (SELECT COALESCE(NULLIF(tag_data->>'database', ''), dbname) AS database FROM general_database WHERE dbname = i.profile_name AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1) d ON true WHERE i.retired_at IS NULL AND i.role = 'publisher' AND (${source_provider:sqlstring} = '' OR i.provider = ${source_provider:sqlstring}) AND (${source_instance:sqlstring} = '' OR i.instance = ${source_instance:sqlstring}) ORDER BY __text",
         "refresh": 1,
         "type": "query"
       },
@@ -1839,7 +2094,7 @@
         "label": "Target",
         "name": "target",
         "options": [],
-        "query": "SELECT database || ' — ' || endpoint AS __text, profile AS __value FROM (SELECT DISTINCT ON (dbname) dbname AS profile, COALESCE(NULLIF(tag_data->>'database', ''), dbname) AS database, COALESCE(NULLIF(tag_data->>'server_address', ''), NULLIF(tag_data->>'instance', ''), dbname) AS endpoint FROM general_database WHERE tag_data->>'migration_role' = 'subscriber' AND tag_data->>'migration_pair' = (SELECT tag_data->>'migration_pair' FROM general_database WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1) AND time > now() - interval '5 minutes' ORDER BY dbname, time DESC) AS latest ORDER BY database, endpoint",
+        "query": "SELECT COALESCE(d.database, i.profile_name) || ' — ' || i.profile_name AS __text, i.profile_name AS __value FROM monitoring_profile_inventory i LEFT JOIN LATERAL (SELECT COALESCE(NULLIF(tag_data->>'database', ''), dbname) AS database FROM general_database WHERE dbname = i.profile_name AND time > now() - interval '5 minutes' ORDER BY time DESC LIMIT 1) d ON true WHERE i.retired_at IS NULL AND i.role = 'subscriber' AND i.migration_pair = (SELECT migration_pair FROM monitoring_profile_inventory WHERE profile_name = ${source:sqlstring}) AND (${target_provider:sqlstring} = '' OR i.provider = ${target_provider:sqlstring}) AND (${target_instance:sqlstring} = '' OR i.instance = ${target_instance:sqlstring}) ORDER BY __text",
         "refresh": 1,
         "type": "query"
       },
@@ -1852,7 +2107,7 @@
         "label": "Slot",
         "name": "slot",
         "options": [],
-        "query": "SELECT DISTINCT tag_data->>'slot_name' AS __text, tag_data->>'slot_name' AS __value FROM source_replication_slot WHERE dbname = '$source' AND time > now() - interval '5 minutes' ORDER BY 1",
+        "query": "SELECT DISTINCT tag_data->>'slot_name' AS __text, tag_data->>'slot_name' AS __value FROM target_subscription WHERE dbname = ${target:sqlstring} AND time > now() - interval '5 minutes' ORDER BY 1",
         "refresh": 1,
         "type": "query"
       },
@@ -1866,7 +2121,7 @@
         "label": "Subscription",
         "name": "subscription",
         "options": [],
-        "query": "SELECT DISTINCT tag_data->>'subscription' AS __text, tag_data->>'subscription' AS __value FROM target_subscription WHERE dbname = '$target' AND tag_data->>'slot_name' = '$slot' AND time > now() - interval '5 minutes' ORDER BY 1",
+        "query": "SELECT DISTINCT tag_data->>'subscription' AS __text, tag_data->>'subscription' AS __value FROM target_subscription WHERE dbname = ${target:sqlstring} AND tag_data->>'slot_name' = ${slot:sqlstring} AND time > now() - interval '5 minutes' ORDER BY 1",
         "refresh": 1,
         "type": "query"
       }
@@ -1880,5 +2135,5 @@
   "timezone": "browser",
   "title": "PostgreSQL Logical Replication Migration",
   "uid": "logical-replication-migration",
-  "version": 10
+  "version": 15
 }

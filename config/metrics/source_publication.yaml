@@ -1,7 +1,7 @@
 metrics:
   source_publication:
     description: Publisher publication configuration and table count.
-    is_instance_level: true
+    is_instance_level: false
     gauges: ['*']
     sqls:
       17: |

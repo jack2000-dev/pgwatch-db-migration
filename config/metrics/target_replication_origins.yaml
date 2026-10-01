@@ -1,7 +1,7 @@
 metrics:
   target_replication_origins:
     description: Replication origins and conservative subscription activity inference.
-    is_instance_level: true
+    is_instance_level: false
     gauges: ['*']
     sqls:
       17: |
