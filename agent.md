@@ -72,6 +72,9 @@ Each migration pair has two pgwatch profiles with the same
   apply/sync errors, table synchronization, and replication origins.
 - Shared: connectivity and database health. Pairing relies on the matching
   migration pair and slot names; do not silently infer a pair from hostnames.
+- Fleet grouping uses the explicit `provider` and `instance` tags on each
+  database profile. One server may host many database pairs. Registered
+  profiles without fresh metrics must remain visible as `UNKNOWN`.
 
 Use the existing SQL under `sql/` and metrics under `config/metrics/`. Extend
 those definitions only when the requested signal cannot be obtained from an
@@ -112,6 +115,15 @@ The fleet dashboard intentionally maps states as follows:
 - `NOT READY`: replication/table health fails or more than five new errors
   occur in five minutes.
 - `UNKNOWN`: required metrics are missing, stale, incomplete, or too new.
+
+Fleet health and cutover are separate rollups. An instance pair is `READY`
+only when every database/slot relationship is `READY`; expose status counts
+for mixed instances. The shared relationship SQL in
+`grafana/sql/relationship-status.sql` is embedded into both dashboards by
+`scripts/render-dashboards.py`. Regenerate the JSON after changing that SQL.
+The inventory sync reads only pgwatch profile names, enablement, and tags from
+the internal config DB; never copy connection strings or credentials into
+the metrics DB.
 
 Dashboard readiness is an operational signal, not a data-equality guarantee.
 Before transferring application ownership, coordinate the application write

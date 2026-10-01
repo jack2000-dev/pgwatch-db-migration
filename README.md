@@ -247,7 +247,9 @@ pgwatch v5.3 invalidates Web UI sessions whenever its container restarts. If a
 page spins after a restart, open the root URL in an incognito window and sign
 in again.
 
-Give both sides the same unique `migration_pair`. Example custom tags:
+Give both database profiles the same unique `migration_pair`. Use the same
+`provider` and `instance` tags on every database profile hosted by one
+PostgreSQL server; these tags define the Fleet grouping. Example custom tags:
 
 ```json
 {"provider":"aws","instance":"aws-publisher-01","environment":"production","migration_role":"publisher","migration_pair":"orders-migration-01"}
@@ -263,7 +265,10 @@ Set `instance` to the human-readable cloud instance or endpoint name. PostgreSQL
 cannot report the DNS name used by its client, so the dashboard also shows the
 server IP and port detected independently by each database connection.
 
-Select the `logical_replication_publisher` preset for a publisher or
+Create one publisher and one subscriber profile per monitored database. Reuse
+the instance tags for databases on the same server, but use a distinct
+`migration_pair` for each database migration. Select the
+`logical_replication_publisher` preset for a publisher or
 `logical_replication_subscriber` for a subscriber. Leave custom metrics empty;
 they override the preset. Presets contain only metric names and intervals, so
 you must still set `migration_role`, `migration_pair`, and `instance` in each
@@ -336,16 +341,24 @@ ssh -L 3000:127.0.0.1:3000 user@monitor.example.com
 ```
 
 For panel meanings and issue resolution, see the [dashboard guide](DASHBOARD.md).
+After upgrading this branch, run `sudo ./scripts/start.sh` once to create the
+internal inventory table and start its sync service; a Grafana-only restart is
+not enough.
 
 Two dashboards are under **PostgreSQL Migrations**:
 
-- **PostgreSQL Migration Fleet Overview** lists every correlated migration as
-  `source instance → target instance`, database, latest lag in bytes, new
-  errors in the last five minutes, table readiness, and cutover status. Click a
-  database name to open the matching detail dashboard.
-- **PostgreSQL Logical Replication Migration** provides detailed charts and
-  publication/table status tables. Its visible selectors are Source database,
-  Target database, and Slot; the matching subscription is resolved automatically.
+- **PostgreSQL Migration Fleet Overview** has one row per
+  `source provider/instance → target provider/instance`. It shows rolled-up
+  health and cutover states plus counts of database/slot relationships in each
+  state. `READY` requires every relationship to be READY. Click the source
+  instance to inspect the databases. Registered profiles without recent metrics
+  remain visible as `UNKNOWN`.
+- **PostgreSQL Logical Replication Migration** starts with a database/slot
+  table for the chosen instance pair. Click a source database row to load its
+  detailed charts and publication/table status tables. The visible selectors
+  are Source database, Target database, and Slot; Slot lists subscriptions on
+  the selected target, not every slot on the publisher. The matching
+  subscription is resolved automatically.
   The dashboard is split into Source on the left and Target on the right. Its two
   identity tables show database, configured instance, detected server endpoint,
   and PostgreSQL version. Source and target database-size tables appear below
@@ -450,7 +463,11 @@ Each pgwatch source is one database connection. For another migration pair:
    interval, and run `./scripts/validate.sh`.
 
 Do not reuse a pgwatch `name`; it becomes the `dbname` label in the metrics
-sink. The dashboard automatically discovers additional names. Keep one shared
+sink. Profile names and non-secret tags are copied from the pgwatch registry
+to the internal metrics database once a minute so never-connected profiles
+can appear as `UNKNOWN`; connection strings and credentials are not copied.
+If that inventory sync is older than two minutes, readiness becomes `UNKNOWN`.
+The dashboard automatically discovers additional names. Keep one shared
 stack unless a network or security boundary requires separate collectors.
 
 ## Troubleshoot the Web UI or missing metrics

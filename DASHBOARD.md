@@ -7,23 +7,25 @@ replication health. The separate data validator compares application rows.
 ## Start with the fleet overview
 
 Open **PostgreSQL Migrations → PostgreSQL Migration Fleet Overview** in
-Grafana. Each row joins a publisher slot and subscriber subscription by their
-`migration_pair` tag and slot name. Click the database name to open details.
+Grafana. Each row is one source PostgreSQL instance → target PostgreSQL
+instance. Profiles are grouped by their explicit `provider` and `instance`
+tags; each database migration needs its own shared `migration_pair` tag.
+Click the source instance to inspect its databases.
 
 | Column | How to read it |
 | --- | --- |
-| Instance | Source instance → target instance. Confirm this is the intended pair. |
-| Database | Publisher database; click it for the detail view. |
-| Lag (bytes) | Publisher WAL generated but not yet acknowledged by the logical slot. Zero does not prove rows are equal. |
-| Errors | New apply and sync errors in the last five minutes, not their lifetime total. |
-| Tables ready | `YES` means all tracked tables are ready; `NO` means some are not; `UNKNOWN` means evidence is missing or old. |
-| Data validation / validated at | Result and time of the latest exact row comparison for the pair. |
-| Cutover status | Combined replication and data-check decision below. |
+| Source/target provider and instance | The two servers in this migration path. Click the source instance for the database table. |
+| Migrations | Number of database/slot relationships in this instance pair. |
+| Health status | Worst current replication-health state across those relationships. |
+| Cutover status | `READY` only if every relationship is READY; otherwise the most important blocking state. |
+| Status counts | Number of relationships in each health/cutover state. Use these when a mixed instance has one rollup label. |
+| Max lag bytes / new errors | Largest publisher slot lag and total new apply/sync errors in five minutes. Zero lag is not proof that rows are equal. |
 
 The fleet view requires about five minutes of complete, stable readings
 before it can show `READY`. New profiles may show `UNKNOWN` during that
-window. A missing row often means collection has stopped or the two
-profiles' pair/slot tags do not match.
+window. Saved profiles without fresh observations stay visible as `UNKNOWN`.
+If an expected row is absent, check the pgwatch registry and inventory sync
+service; the dashboard never guesses instance identity from hostnames.
 
 ### What each cutover status means
 
@@ -36,15 +38,19 @@ profiles' pair/slot tags do not match.
 | `DATA CHECK FAILED` | The latest comparison did not pass. This label is on the detail dashboard; the fleet view uses `NOT READY` once other checks pass. Inspect the private validation report. |
 | `UNKNOWN` | Required readings are missing, old, or too new to judge. Check collection and profile pairing. |
 
-The detail **Cutover status** uses the latest readings. The fleet view also
-checks a recent stability window, so treat its result as the stronger
-readiness signal. A high-priority condition can hide another issue behind
-one displayed status: inspect the individual panels as well.
+The database table and Fleet use the same five-minute readiness query. The
+detail **Cutover status** panel uses the latest readings, so treat the table's
+result as the stronger readiness signal. A high-priority condition can hide
+another issue behind one displayed status: inspect the counts and panels.
 
 ## Read the detail dashboard
 
-Choose the visible **Source**, **Target**, and **Slot** selectors. Select
-the publisher and its matching MyCloud subscriber. The dashboard resolves
+Start with the **Database migrations in this instance pair** table. It shows
+source and target database, subscription, slot, health, cutover state, lag,
+errors, table readiness, and data-check result. Click a source database to
+load its detailed panels. You can also use the visible **Source**, **Target**,
+and **Slot** selectors. Slot lists subscriptions on the selected target; an
+unrelated publisher slot will not appear. The dashboard resolves
 the subscription from the chosen target and slot. Check the **Source** and
 **Target** identity tables for database, instance, endpoint, and PostgreSQL
 version before interpreting other panels. Each panel's information icon
@@ -88,7 +94,7 @@ Then use the matching row:
 
 | Symptom | Check | Safe next step |
 | --- | --- | --- |
-| Empty fleet row, selector, or `UNKNOWN` | Enabled profiles; matching `migration_pair` and slot names; recent samples. | Run `sudo ./scripts/validate.sh`, test connections in the pgwatch Web UI, and inspect pgwatch logs. Wait five minutes after new profiles. |
+| Empty fleet row, selector, or `UNKNOWN` | Enabled profiles; explicit `provider`, `instance`, `migration_role`, and matching `migration_pair` tags; recent samples; inventory sync. | Run `sudo ./scripts/validate.sh`, test connections in the pgwatch Web UI, and inspect `inventory-sync` and pgwatch logs. Wait five minutes after new profiles. |
 | Inactive slot or `DISCONNECTED` | Slot active/state, WAL status, invalidation reason; subscription and worker state. | Check network, authentication, SSL, and subscriber logs with the database owner. An invalidated slot needs coordinated recovery. |
 | `IDLE` data flow | Lag, slot state, apply worker, and whether the application has written anything. | If lag is zero and there are no writes, no action is needed. If lag grows, investigate subscriber throughput and connectivity. |
 | Lag or retained WAL grows | Slot restart/confirmed LSNs, message age, workers, and subscriber logs. | Diagnose subscriber slowdown or disconnection; tell the publisher owner if WAL retention threatens disk space. |
